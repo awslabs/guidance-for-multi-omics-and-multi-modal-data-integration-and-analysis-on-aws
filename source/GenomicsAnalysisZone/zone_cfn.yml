@@ -1,0 +1,35 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: GenomicsAnalysisZone
+
+# CodeCommit
+#   Repo
+
+Parameters:
+  ResourcePrefix:
+    Type: String
+    Default: GenomicsAnalysis
+  ResourcePrefixLowercase:
+    Type: String
+    Default: genomicsanalysis
+    
+Resources:
+  # CodeCommit
+  Repo:
+    DeletionPolicy: Retain
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Sub ${ResourcePrefix}-Pipe
+      RepositoryDescription: !Sub ${ResourcePrefix}-Pipe
+Outputs:
+  RepoName:
+    Description: RepoName
+    Value: !Sub ${Repo.Name}
+  RepoHttpUrl:
+    Description: RepoCloneCommand
+    Value: !Sub ${Repo.CloneUrlHttp}
+
+# aws cloudformation update-stack --stack-name GenomicsAnalysisZone --template-body file://template_cfn.yml --capabilities CAPABILITY_IAM --output text; aws cloudformation wait stack-update-complete --stack-name GenomicsAnalysisZone
+
+# aws cloudformation create-stack --stack-name GenomicsAnalysisZone --template-body file://template_cfn.yml --capabilities CAPABILITY_IAM --enable-termination-protection --output text; aws cloudformation wait stack-create-complete --stack-name GenomicsAnalysisZone; aws cloudformation describe-stacks --stack-name GenomicsAnalysisZone --query 'Stacks[].Outputs[?OutputKey==`RepoCloneCommand`].OutputValue' --output text
+

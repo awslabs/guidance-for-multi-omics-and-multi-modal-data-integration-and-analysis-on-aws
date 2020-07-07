@@ -1,0 +1,584 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: GenomicsAnalysisPipe
+
+Parameters:
+  ResourcePrefix:
+    Type: String
+    Default: GenomicsAnalysis
+  ResourcePrefixLowercase:
+    Type: String
+    Default: genomicsanalysis
+
+Resources:
+
+  SourceEvent:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - CodePipeline
+      - SourceEventRole
+    Properties:
+      Description: Rule for Amazon CloudWatch Events to detect changes to the source
+        repository and trigger pipeline execution
+      EventPattern:
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceName:
+            - master
+          referenceType:
+            - branch
+        detail-type:
+          - CodeCommit Repository State Change
+        resources:
+          - !Sub ${Repo.Arn}
+        source:
+          - aws.codecommit
+      Name: !Sub ${Repo}-Pipeline-Trigger
+      State: ENABLED
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}
+          Id: ProjectPipelineTarget
+          RoleArn: !Sub ${SourceEventRole.Arn}
+
+  CodeBuildCopyResourcesProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn:
+      - BuildBucket
+      - CodeBuildRole
+      - ResourcesBucket
+    Properties:
+      Name: !Sub ${ResourcePrefix}CopyResources
+      Description: !Sub ${ResourcePrefix}CopyResources
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:3.0
+        EnvironmentVariables:
+          - Name: RESOURCES_BUCKET
+            Value: !Sub ${ResourcesBucket}
+      ServiceRole: !Sub ${CodeBuildRole.Arn}
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: copyresources_buildspec.yml            
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W32
+            reason: Artifact outputs are encrypted by default.
+
+  CodeBuildBuildHailProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn:
+      - BuildBucket
+      - CodeBuildRole
+      - ResourcesBucket
+    Properties:
+      Name: !Sub ${ResourcePrefix}BuildHail
+      Description: !Sub ${ResourcePrefix}BuildHail
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:2.0
+        EnvironmentVariables:
+          - Name: HAIL_REPO
+            Value: https://github.com/hail-is/hail.git
+          - Name: RESOURCES_BUCKET
+            Value: !Sub ${ResourcesBucket}
+      ServiceRole: !Sub ${CodeBuildRole.Arn}
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildhail_buildspec.yml            
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W32
+            reason: Artifact outputs are encrypted by default.
+
+  Repo:
+    DeletionPolicy: Retain
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Sub ${ResourcePrefix}
+      RepositoryDescription: !Sub ${ResourcePrefix}
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn:
+      - CodeBuildCopyResourcesProject
+      - CodeBuildBuildHailProject
+      - CodePipelineRole
+      - Repo
+    Properties:
+      ArtifactStore:
+        Location: !Ref BuildBucket
+        Type: S3
+      Name: !Sub ${ResourcePrefix}CodePipeline
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: CodeCommitRepo
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                BranchName: master
+                RepositoryName: !Sub ${ResourcePrefix}
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: SourceStageOutput
+        - Name: Build
+          Actions:
+            - Name: BuildHail
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Sub ${ResourcePrefix}BuildHail
+              InputArtifacts:
+                - Name: SourceStageOutput
+            - Name: CopyResources
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Sub ${ResourcePrefix}CopyResources
+              InputArtifacts:
+                - Name: SourceStageOutput
+        - Name: CreateStack
+          Actions:
+            - Name: CreateStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                StackName: !Sub ${ResourcePrefix}
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Sub ${CloudFormationRole.Arn}
+                TemplatePath: !Sub SourceStageOutput::code_cfn.yml
+                ParameterOverrides: !Sub |
+                  {
+                    "ResourcePrefix" : "${ResourcePrefix}",
+                    "ResourcePrefixLowercase" : "${ResourcePrefixLowercase}",
+                    "ResourcesBucket" : "${ResourcesBucket}",
+                    "DataLakeBucket": "${DataLakeBucket}", 
+                    "DatabaseAdministrator": "${CloudFormationRole.Arn}"
+                  }
+              InputArtifacts:
+                - Name: SourceStageOutput
+              OutputArtifacts: []
+              RunOrder: 3
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+      Policies:
+        - PolicyName: CloudFormationRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PassRole
+                  - iam:GetRole
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ResourcePrefix}*
+              - Effect: Allow
+                Action:
+                  - glue:CreateJob
+                  - glue:UpdateJob
+                  - glue:DeleteJob
+                  - glue:GetJob
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - glue:CreateSecurityConfiguration
+                  - glue:GetSecurityConfiguration
+                  - glue:DeleteSecurityConfiguration
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - glue:CreateWorkflow
+                  - glue:DeleteWorkflow
+                  - glue:UpdateWorkflow
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - glue:GetDataCatalogEncryptionSettings
+                  - glue:PutDataCatalogEncryptionSettings
+                  - glue:DeleteDataCatalogEncryptionSettings
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+              - Effect: Allow
+                Action:
+                  - glue:CreateDatabase
+                  - glue:UpdateDatabase
+                  - glue:DeleteDatabase
+                  - glue:GetCrawler
+                  - glue:CreateCrawler
+                  - glue:UpdateCrawler
+                  - glue:DeleteCrawler
+                  - glue:StopCrawler
+                  - glue:StopTrigger
+                  - glue:GetTrigger
+                  - glue:CreateTrigger
+                  - glue:DeleteTrigger
+                  - glue:UpdateTrigger
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${ResourcePrefixLowercase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${ResourcePrefixLowercase}/*
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:userDefinedFunction/${ResourcePrefixLowercase}/*
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${ResourcePrefixLowercase}*
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:trigger/${ResourcePrefixLowercase}*
+              - Effect: Allow
+                Action:
+                  - glue:CreateTable
+                  - glue:UpdateTable
+                  - glue:DeleteTable
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${ResourcePrefixLowercase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${ResourcePrefixLowercase}/*
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:InvokeFunction
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ResourcePrefix}*
+              - Effect: Allow
+                Action:
+                  - athena:CreateWorkGroup
+                  - athena:DeleteWorkGroup
+                Resource: 
+                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}
+              - Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:GenerateDataKey
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:GetObject
+                Resource:
+                  - !Sub ${BuildBucket.Arn}
+                  - !Sub ${BuildBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - sagemaker:CreateNotebookInstanceLifecycleConfig
+                  - sagemaker:DescribeNotebookInstanceLifecycleConfig
+                  - sagemaker:UpdateNotebookInstanceLifecycleConfig
+                  - sagemaker:DeleteNotebookInstanceLifecycleConfig
+                  - sagemaker:CreateNotebookInstance
+                  - sagemaker:UpdateNotebookInstance
+                  - sagemaker:StartNotebookInstance
+                  - sagemaker:DescribeNotebookInstance
+                  - sagemaker:DeleteNotebookInstance
+                  - sagemaker:StopNotebookInstance
+                Resource:
+                  - !Sub arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance-lifecycle-config/${ResourcePrefixLowercase}*
+                  - !Sub arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${ResourcePrefixLowercase}*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: Glue does not support resource-level permissions for these actions.
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: CodeBuildAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ResourcePrefix}*
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: !Sub ${BuildBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !Sub ${ResourcesBucket.Arn}
+                  - !Sub ${DataLakeBucket.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !Sub ${ResourcesBucket.Arn}
+                  - !Sub ${ResourcesBucket.Arn}/*
+                  - !Sub ${DataLakeBucket.Arn}
+                  - !Sub ${DataLakeBucket.Arn}/*
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DescribeStacks
+                Effect: Allow
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}/*
+        - PolicyName: IamAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - iam:PassRole
+                Effect: Allow
+                Resource: !GetAtt CodeBuildRole.Arn
+        - PolicyName: IamAccessCF
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - iam:PassRole
+                Effect: Allow
+                Resource: !Sub ${CloudFormationRole.Arn}
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:DeleteObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${BuildBucket.Arn}
+                  - !Sub ${BuildBucket.Arn}/*
+        - PolicyName: CodeBuildAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Effect: Allow
+                Resource:
+                  - !GetAtt CodeBuildCopyResourcesProject.Arn
+                  - !GetAtt CodeBuildBuildHailProject.Arn
+        - PolicyName: CodeCommitAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:UploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetUploadArchiveStatus
+                Resource: !GetAtt Repo.Arn
+
+  SourceEventRole:
+    Type: AWS::IAM::Role
+    DependsOn: CodePipeline
+    Description: IAM role to allow Amazon CloudWatch Events to trigger AWS CodePipeline
+      execution
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Sid: 1
+      Policies:
+        - PolicyName: CloudWatchEventPolicy
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - codepipeline:StartPipelineExecution
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}*
+
+  BuildBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogsBucket
+        LogFilePrefix: templates_logs/
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W51
+            reason: Bucket policy is not needed.
+
+  DataLakeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogsBucket
+        LogFilePrefix: templates_logs/
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W51
+            reason: Bucket policy is not needed.
+
+  ResourcesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogsBucket
+        LogFilePrefix: templates_logs/
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W51
+            reason: Bucket policy is not needed.
+
+  LogsBucket:
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      AccessControl: LogDeliveryWrite
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: This is the pipeline and solution log bucket and does not require access logging to be configured.
+          - id: W51
+            reason: Bucket policy is not needed.
+
+Outputs:
+  LogsBucket:
+    Value: !Ref LogsBucket
+  BuildBucket:
+    Value: !Ref BuildBucket
+  RepoName:
+    Description: RepoName
+    Value: !Sub ${Repo.Name}
+  RepoHttpUrl:
+    Description: RepoCloneCommand
+    Value: !Sub ${Repo.CloneUrlHttp}
+  ResourcesBucket:
+    Value: !Ref ResourcesBucket
+  DataLakeBucket:
+    Value: !Ref DataLakeBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-DataLakeBucket
+  DataLakeBucketArn:
+    Value: !GetAtt DataLakeBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DataLakeBucketArn
+
+  # aws cloudformation update-stack --stack-name ${PROJECT_NAME:-GenomicsAnalysis}-Pipeline --template-body file://pipe_cfn.yml --capabilities CAPABILITY_NAMED_IAM --output text --parameters ParameterKey=ResourcePrefix,ParameterValue=${PROJECT_NAME:-GenomicsAnalysis} ParameterKey=ResourcePrefixLowercase,ParameterValue=$(echo ${PROJECT_NAME:-GenomicsAnalysis} | tr '[:upper:]' '[:lower:]'); aws cloudformation wait stack-update-complete --stack-name ${PROJECT_NAME:-GenomicsAnalysis}-Pipeline
