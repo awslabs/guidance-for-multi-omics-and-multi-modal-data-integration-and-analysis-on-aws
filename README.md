@@ -1,5 +1,5 @@
 # Genomics Tertiary Analysis and Data Lakes Using AWS Glue and Amazon Athena
-This solution demonstrates how to use AWS Glue and Amazon Athena to build a genomics data lake.
+This solution creates a scalable environment in AWS to prepare genomic data for large-scale analysis and perform interactive queries against a genomics data lake. This solution demonstrates how to build, package, and deploy libraries used for genomics data conversion; provision data ingestion pipelines for genomics data preparation and cataloging; and run interactive queries against a genomics data lake.
 
 ## Running unit tests for customization
 * Clone the repository, then make the desired code changes
