@@ -279,7 +279,7 @@ Resources:
                     "Effect": "Allow",
                     "Principal": {
                         "AWS": [
-                          "arn:aws:iam::${AWS::AccountId}:role/Admin",
+                          "arn:aws:iam::${AWS::AccountId}:root",
                           "${DatabaseAdministrator}"
                         ]
                     },
