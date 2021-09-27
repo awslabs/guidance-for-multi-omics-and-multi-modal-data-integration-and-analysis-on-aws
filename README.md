@@ -61,6 +61,13 @@ Each microservice follows the structure of:
 
 ***
 
+---
+
+This solution collects anonymous operational metrics to help AWS improve the
+quality of features of the solution. For more information, including how to disable
+this capability, please see the [implementation guide](https://docs.aws.amazon.com/solutions/latest/genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena/appendix-i.html.
+
+---
 
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
