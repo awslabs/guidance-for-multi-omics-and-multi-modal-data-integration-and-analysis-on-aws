@@ -1,6 +1,9 @@
 # Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
 This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
 
+## Solution Setup
+You can setup the solution in your account by clicking the "Deploy sample code on Console" button on the [solution home page](https://aws.amazon.com/solutions/guidance/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis/).
+
 ## Running unit tests for customization
 * Clone the repository, then make the desired code changes
 * Next, run unit tests to make sure added customization passes the tests
@@ -17,7 +20,7 @@ chmod +x ./run-unit-tests.sh
 3. Create a Cloud9 environment.
 4. Clone this repo into that environment.
 
-## Building distributable for customization
+## Building and deploying distributable for customization
 * Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements.
 ```
 export DIST_OUTPUT_BUCKET=my-bucket-name # bucket where customized code will reside
