@@ -1,9 +1,10 @@
 # Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
 This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This guidance demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
 
-## Guidance Setup
+# Setup
 You can setup this guidance in your account by clicking the "Deploy sample code on Console" button on the [guidance home page](https://aws.amazon.com/solutions/guidance/multi-omics-and-multi-modal-data-integration-and-analysis/).
 
+# Customization
 ## Running unit tests for customization
 * Clone the repository, then make the desired code changes
 * Next, run unit tests to make sure added customization passes the tests
