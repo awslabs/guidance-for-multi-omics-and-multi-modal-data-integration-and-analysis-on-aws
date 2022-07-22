@@ -12,13 +12,13 @@ chmod +x ./run-unit-tests.sh
 
 ## Prerequisites
 
-1. Create a bucket $DIST_OUTPUT_BUCKET, i.e., my-bucket-name
-2. Create another bucket $DIST_OUTPUT_BUCKET-$REGION, i.e., my-bucket-name-us-west-2
+1. Create a distribution bucket, i.e., my-bucket-name
+2. Create a region based distribution, i.e., bucket my-bucket-name-us-west-2
 3. Create a Cloud9 environment.
 4. Clone this repo into that environment.
 
 ## Building distributable for customization
-* Configure the bucket name and region of your target Amazon S3 distribution bucket
+* Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements.
 ```
 export DIST_OUTPUT_BUCKET=my-bucket-name # bucket where customized code will reside
 export REGION=my-region
@@ -26,7 +26,7 @@ export REGION=my-region
 export SOLUTION_NAME=genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena
 export VERSION=latest # version number for the customized code
 ```
-_Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution. Also, the assets in bucket should be publicly accessible.
+_Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution.
 
 * Now build the distributable:
 ```
@@ -39,29 +39,21 @@ chmod +x ./build-s3-dist.sh
 aws s3 cp ./dist/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION/ --recursive
 ```
 
-# deploy global assets
-# this only needs to be done once
+* deploy global assets
+
 ```
 aws s3 cp ./global-s3-assets/ s3://$DIST_OUTPUT_BUCKET/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-# deploy regional assets
-# repeat this step for as many regions as needed
+* deploy regional assets
+ 
 ```
 aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-* Get the link of the solution template uploaded to your Amazon S3 bucket.
-* Deploy the solution to your account by launching a new AWS CloudFormation stack using the link of the solution template in Amazon S3.
-
-*** 
-
 * Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
-* 
 
 * Go to CloudFormation and create a new stack using the template URL copied.
-
-***
 
 ## File Structure
 
