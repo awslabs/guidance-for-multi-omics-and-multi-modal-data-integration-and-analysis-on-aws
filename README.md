@@ -1,5 +1,5 @@
-# Genomics Tertiary Analysis and Data Lakes Using AWS Glue and Amazon Athena
-This solution creates a scalable environment in AWS to prepare genomic data for large-scale analysis and perform interactive queries against a genomics data lake. This solution demonstrates how to build, package, and deploy libraries used for genomics data conversion; provision data ingestion pipelines for genomics data preparation and cataloging; and run interactive queries against a genomics data lake.
+# Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
+This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
 
 ## Running unit tests for customization
 * Clone the repository, then make the desired code changes
@@ -63,7 +63,7 @@ Each microservice follows the structure of:
 
 This solution collects anonymous operational metrics to help AWS improve the
 quality of features of the solution. For more information, including how to disable
-this capability, please see the [implementation guide](https://docs.aws.amazon.com/solutions/latest/genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena/appendix-i.html).
+this capability, please see the [implementation guide](https://docs.aws.amazon.com/solutions/latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws/appendix-i.html).
 
 ---
 

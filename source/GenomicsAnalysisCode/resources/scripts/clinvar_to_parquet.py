@@ -1,7 +1,4 @@
 import sys
-import urllib2
-import StringIO
-import gzip
 
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions

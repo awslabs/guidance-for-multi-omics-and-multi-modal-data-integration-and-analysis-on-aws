@@ -150,6 +150,11 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - glue:GetDatabases
+#                  - lakeformation:GetDataAccess
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - glue:GetDatabase
                   - glue:CreateDatabase
                 Resource:
@@ -157,7 +162,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - glue:GetTable
+                  - glue:GetTables
+                  - glue:CreateTable
                   - glue:UpdateTable
+                  - glue:DeleteTable
                   - glue:GetDatabase
                   - glue:GetPartition
                   - glue:GetPartitions
@@ -179,7 +187,8 @@ Resources:
                   - athena:GetQueryExecution
                   - athena:GetQueryResults
                 Resource:
-                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}
+                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}-${AWS::Region}
+
         - PolicyName: cfn_access
           PolicyDocument:
             Version: 2012-10-17
@@ -243,7 +252,7 @@ Resources:
     Type: AWS::Athena::WorkGroup
     Properties: 
       Description: !Sub ${ResourcePrefixLowercase}
-      Name: !Sub ${ResourcePrefixLowercase}
+      Name: !Sub ${ResourcePrefixLowercase}-${AWS::Region}
       RecursiveDeleteOption: True
       WorkGroupConfiguration: 
         ResultConfiguration: 
@@ -379,10 +388,11 @@ Resources:
         ScriptLocation: !Sub s3://${ResourcesBucket}/scripts/vcf_to_parquet.py
       DefaultArguments:
         --job-bookmark-option: job-bookmark-disable
-        --extra-py-files: !Sub s3://${ResourcesBucket}/artifacts/hail-python.zip,s3://${ResourcesBucket}/artifacts/decorator.zip
+        --additional-python-modules: !Sub s3://${ResourcesBucket}/artifacts/hail-0.2.93-py3-none-any.whl
         --extra-jars: !Sub s3://${ResourcesBucket}/artifacts/hail-all-spark.jar
         --input_path: !Sub s3://${DataLakeBucket}/variants/vcf/variants.vcf.bgz
         --output_path: !Sub s3a://${DataLakeBucket}/variants/parquet/vcf/
+      GlueVersion: "3.0"
       AllocatedCapacity: 2
       ExecutionProperty:
         MaxConcurrentRuns: 2
@@ -400,6 +410,7 @@ Resources:
         --job-bookmark-option: job-bookmark-disable
         --input_path: !Sub s3://${DataLakeBucket}/annotation/clinvar/variant_summary.txt.gz
         --output_path: !Sub s3a://${DataLakeBucket}/annotation/parquet/clinvar/
+      GlueVersion: "3.0"
       AllocatedCapacity: 2
       ExecutionProperty:
         MaxConcurrentRuns: 2
@@ -456,9 +467,8 @@ Resources:
               #!/bin/bash
               cd /home/ec2-user/SageMaker
               set -e
-              pip install awscli
-              aws s3 cp s3://${ResourcesBucket}/notebooks/runbook.ipynb ./ --acl public-read-write
-              chmod 666 runbook.ipynb
+              aws s3 sync s3://${ResourcesBucket}/notebooks .
+              chmod 666 *.ipynb
               echo "export RESOURCE_PREFIX='${ResourcePrefix}'" > /home/ec2-user/anaconda3/envs/python3/etc/conda/activate.d/env_vars.sh
 
   Runbook:
@@ -468,3 +478,11 @@ Resources:
       InstanceType: ml.t2.medium
       LifecycleConfigName: !GetAtt RunbookLifecycle.NotebookInstanceLifecycleConfigName
       RoleArn: !GetAtt RunbookRole.Arn
+      PlatformIdentifier: notebook-al2-v2
+
+      
+Outputs:
+  DataCatalogEncryptionKeyArn:
+    Value: !GetAtt DataCatalogEncryptionKey.Arn
+    Export:
+      Name: !Sub "${ResourcePrefix}-DataCatalogEncryptionKeyArn"

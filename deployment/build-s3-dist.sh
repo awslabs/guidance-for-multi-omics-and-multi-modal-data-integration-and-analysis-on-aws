@@ -29,7 +29,7 @@ template_dist_dir="$template_dir/global-s3-assets"
 build_dist_dir="$template_dir/regional-s3-assets"
 source_dir="$template_dir/../source"
 
-cp $source_dir/setup_cfn.yml $template_dir/genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena.template
+cp $source_dir/setup_cfn.yml $template_dir/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template
 
 echo "------------------------------------------------------------------------------"
 echo "[Init] Clean old dist"
@@ -38,8 +38,8 @@ echo "rm -rf $template_dist_dir"
 rm -rf $template_dist_dir
 echo "mkdir -p $template_dist_dir"
 mkdir -p $template_dist_dir
-echo "rm -rf $build_dist_dir"
-rm -rf $build_dist_dir
+#echo "rm -rf $build_dist_dir"
+#rm -rf $build_dist_dir
 echo "mkdir -p $build_dist_dir"
 mkdir -p $build_dist_dir
 
@@ -49,14 +49,14 @@ echo "--------------------------------------------------------------------------
 echo "cp $template_dir/*.template $template_dist_dir/"
 cp $template_dir/*.template $template_dist_dir/
 echo "copy yaml templates and rename"
-cp $template_dir/*.yml $template_dist_dir/
-cd $template_dist_dir
+#cp $template_dir/*.yml $template_dist_dir/
+#cd $template_dist_dir
 # Rename all *.yaml to *.template
-for f in *.yml; do
-    mv -- "$f" "${f%.yml}.template"
-done
+#for f in *.yml; do
+#    mv -- "$f" "${f%.yml}.template"
+#done
 
-cd ..
+#cd ..
 echo "Updating code source bucket in template with $1"
 replace="s/%%BUCKET_NAME%%/$1/g"
 echo "sed -i '' -e $replace $template_dist_dir/*.template"
@@ -73,23 +73,7 @@ mkdir $build_dist_dir/variants/onekg-chr22-by_sample/
 mkdir $build_dist_dir/variants/vcf/
 mkdir $build_dist_dir/annotation
 mkdir $build_dist_dir/annotation/clinvar/
-
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/variants/1000genomes/chr22.parquet.zip
-cp chr22.parquet.zip $build_dist_dir/variants/onekg-chr22-by_sample/chr22.parquet.zip
-
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/variants/vcf/variants.vcf.bgz
-cp variants.vcf.bgz $build_dist_dir/variants/vcf/variants.vcf.bgz
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/variants/vcf/part-00000-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet
-cp part-00000-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet $build_dist_dir/variants/vcf/part-00000-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/variants/vcf/part-00001-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet
-cp part-00001-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet $build_dist_dir/variants/vcf/part-00001-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet
-
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/annotations/clinvar/variant_summary.txt.gz
-cp variant_summary.txt.gz $build_dist_dir/annotation/clinvar/variant_summary.txt.gz
-wget https://aws-batch-genomics-shared.s3.amazonaws.com/human-ngs/analysis/annotation/clinvar/part-00000-38061af6-1c74-4605-a37d-ba7b260ad06a-c000.snappy.parquet
-cp part-00000-38061af6-1c74-4605-a37d-ba7b260ad06a-c000.snappy.parquet $build_dist_dir/annotation/clinvar/part-00000-38061af6-1c74-4605-a37d-ba7b260ad06a-c000.snappy.parquet
-
-part-00000-38061af6-1c74-4605-a37d-ba7b260ad06a-c000.snappy.parquet
+mkdir $build_dist_dir/tcga/
 
 echo "------------------------------------------------------------------------------"
 echo "[Rebuild] Solution"

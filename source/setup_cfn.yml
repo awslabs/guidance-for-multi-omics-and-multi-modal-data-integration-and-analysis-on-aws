@@ -1,10 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: |
-  (SO0077) - This solution creates a scalable environment in AWS to prepare genomic data for large-scale analysis and perform interactive queries against a genomics data lake. 
-  This solution builds open-source tools used for genomic data conversion and provisions AWS Glue resources for genomic data preparation and cataloging. 
-  An Amazon SageMaker notebook instance is provisioned with an example Jupyter notebook, that demonstrates how to use Amazon Athena to identify genomic variants related to drug response for a given cohort of individuals. 
-  Continuous integration and continuous delivery (CI/CD) are baked-in using AWS CodeCommit source code repositories and AWS CodePipeline for building and deploying updates to the data preparation jobs, crawlers, data analysis notebooks and the data lake infrastructure. 
+  (SO0077) - This Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
 
 Mappings:
   Send:
@@ -53,7 +50,10 @@ Resources:
         rules_to_suppress:
           - id: W58
             reason: Bug in CfnNag.
-
+          - id: W89
+            reason: Lambda only used on setup.
+          - id: W92
+            reason: No need for concurrent execution.
   SetupLambdaRole:
     Type: AWS::IAM::Role
     DependsOn:
@@ -132,6 +132,7 @@ Resources:
                     - cloudformation:CreateStack
                     - cloudformation:DescribeStacks
                     - cloudformation:DescribeStackResource
+                    - cloudformation:DescribeStackResources
                     - cloudformation:UpdateStack
                     - cloudformation:DeleteStack
                     - cloudformation:UpdateTerminationProtection
@@ -232,7 +233,19 @@ Resources:
                   Action:
                     - glue:StartCrawler
                     - glue:GetCrawlers
+                    - glue:StartWorkflowRun
                   Resource: '*'
+          - PolicyName: LambdaAccess
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:GetFunction
+                    - lambda:CreateFunction
+                    - lambda:DeleteFunction
+                    - lambda:InvokeFunction
+                  Resource:
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Project}*
           - PolicyName: S3Access
             PolicyDocument:
               Statement:

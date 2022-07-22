@@ -1,0 +1,562 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates a QuickSight dashboard for browsing omics data
+
+Parameters:
+  Project:
+    Type: String
+    
+  QuicksightServiceRoleName:
+    Type: String
+    Default: aws-quicksight-service-role-v0
+    
+  QuicksightUserId:
+    Type: String
+
+
+Resources:
+  QuicksightAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+        - !Ref QuicksightServiceRoleName
+      PolicyName: !Sub "${Project}-access"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:ListBucketMultipartUploads
+            Resource: !Sub
+              - "arn:aws:s3:::${DataLakeBucket}"
+              - DataLakeBucket: !ImportValue
+                  Fn::Sub: '${Project}-DataLakeBucket'
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:AbortMultipartUpload
+              - s3:ListMultipartUploadParts
+            Resource: !Sub
+              - "arn:aws:s3:::${DataLakeBucket}/*"
+              - DataLakeBucket: !ImportValue
+                  Fn::Sub: '${Project}-DataLakeBucket'
+          - Effect: Allow
+            Action: s3:PutObject
+            Resource: !Sub
+              - "arn:aws:s3:::${DataLakeBucket}/results/*"
+              - DataLakeBucket: !ImportValue
+                  Fn::Sub: '${Project}-DataLakeBucket'
+          - Effect: Allow
+            Action:
+              - kms:GenerateDataKey
+              - kms:Decrypt
+              - kms:Encrypt
+            Resource:
+              - !ImportValue
+                  Fn::Sub: '${Project}-DataCatalogEncryptionKeyArn'
+  
+  DataSource:
+    Type: AWS::QuickSight::DataSource
+    DependsOn: QuicksightAccessPolicy
+    Properties:
+      DataSourceId: !Sub "${Project}-DataSource"
+      Name: !Sub "${Project}-Data"
+      AwsAccountId: !Ref AWS::AccountId
+      Type: ATHENA
+      DataSourceParameters:
+        AthenaParameters:
+          WorkGroup: !ImportValue
+            Fn::Sub: '${Project}-ResourcePrefixLowercase'
+
+  DataSet:
+    Type: AWS::QuickSight::DataSet
+    Properties:
+      DataSetId: !Sub "${Project}-DataSet"
+      Name: !Ref Project
+      AwsAccountId: !Ref AWS::AccountId
+      ImportMode: SPICE
+      PhysicalTableMap:
+        PhysicalTable1:
+          RelationalTable:
+            DataSourceArn: !GetAtt DataSource.Arn
+            Schema: !ImportValue
+              Fn::Sub: '${Project}-ResourcePrefixLowercase'
+            Name: clinical_patient
+            InputColumns:
+              - Name: bcr_patient_uuid
+                Type: STRING
+              - Name: bcr_patient_barcode
+                Type: STRING
+              - Name: form_completion_date
+                Type: STRING
+              - Name: histologic_diagnosis3
+                Type: STRING
+              - Name: race
+                Type: STRING
+              - Name: ethnicity
+                Type: STRING
+              - Name: location_lung_parenchyma
+                Type: STRING
+              - Name: height_cm_at_diagnosis
+                Type: STRING
+              - Name: prospective_collection
+                Type: STRING
+              - Name: weight_kg_at_diagnosis
+                Type: STRING
+              - Name: retrospective_collection
+                Type: STRING
+              - Name: gender
+                Type: STRING
+              - Name: birth_days_to
+                Type: STRING
+              - Name: history_other_malignancy
+                Type: STRING
+              - Name: history_neoadjuvant_treatment
+                Type: STRING
+              - Name: cause_of_death
+                Type: STRING
+              - Name: cause_of_death_other
+                Type: STRING
+              - Name: residual_tumor
+                Type: STRING
+              - Name: tumor_status
+                Type: STRING
+              - Name: ajcc_staging_edition
+                Type: STRING
+              - Name: ecog_score
+                Type: STRING
+              - Name: ajcc_nodes_pathologic_pn
+                Type: STRING
+              - Name: karnofsky_score
+                Type: STRING
+              - Name: ajcc_metastasis_pathologic_pm
+                Type: STRING
+              - Name: radiation_treatment_adjuvant
+                Type: STRING
+              - Name: vital_status
+                Type: STRING
+              - Name: pharmaceutical_tx_adjuvant
+                Type: STRING
+              - Name: tobacco_smoking_history_indicator
+                Type: STRING
+              - Name: tobacco_smoking_age_started
+                Type: STRING
+              - Name: last_contact_days_to
+                Type: STRING
+              - Name: tobacco_smoking_pack_years_smoked
+                Type: STRING
+              - Name: hiv_status
+                Type: STRING
+              - Name: death_days_to
+                Type: STRING
+              - Name: nadir_cd4_counts
+                Type: STRING
+              - Name: cd4_counts_at_diagnosis
+                Type: STRING
+              - Name: pulmonary_function_test_indicator
+                Type: STRING
+              - Name: hiv_rna_load_at_diagnosis
+                Type: STRING
+              - Name: fev1_percent_ref_prebroncholiator
+                Type: STRING
+              - Name: prior_aids_conditions
+                Type: STRING
+              - Name: fev1_percent_ref_postbroncholiator
+                Type: STRING
+              - Name: hbv_test_results
+                Type: STRING
+              - Name: fev1_fvc_ratio_prebroncholiator
+                Type: STRING
+              - Name: hcv_test_results
+                Type: STRING
+              - Name: fev1_fvc_ratio_postbroncholiator
+                Type: STRING
+              - Name: hpv_test_results
+                Type: STRING
+              - Name: carbon_monoxide_diffusion_dlco
+                Type: STRING
+              - Name: kshv_hhv8_test_results
+                Type: STRING
+              - Name: kras_gene_analysis_indicator
+                Type: STRING
+              - Name: haart_therapy_prior_to_dx
+                Type: STRING
+              - Name: kras_mutation_found
+                Type: STRING
+              - Name: haart_therapy_at_dx
+                Type: STRING
+              - Name: kras_mutation_identified_type
+                Type: STRING
+              - Name: cdc_hiv_risk_group
+                Type: STRING
+              - Name: egfr_mutation_status
+                Type: STRING
+              - Name: egfr_mutation_identified_type
+                Type: STRING
+              - Name: prior_mailgnancy_type
+                Type: STRING
+              - Name: eml4_alk_translocation_status
+                Type: STRING
+              - Name: history_immunological_disease
+                Type: STRING
+              - Name: eml4_alk_translocation_variant
+                Type: STRING
+              - Name: history_immunological_disease_other
+                Type: STRING
+              - Name: eml4_alk_analysis_type
+                Type: STRING
+              - Name: history_immunosuppresive_rx
+                Type: STRING
+              - Name: history_immunosuppressive_rx_other
+                Type: STRING
+              - Name: tobacco_smoking_year_started
+                Type: STRING
+              - Name: history_relevant_infectious_dx
+                Type: STRING
+              - Name: tobacco_smoking_year_stopped
+                Type: STRING
+              - Name: history_immunosuppresive_dx_other
+                Type: STRING
+              - Name: histologic_diagnosis67
+                Type: STRING
+              - Name: submitted_tumor_site
+                Type: STRING
+              - Name: performance_status_timing
+                Type: STRING
+              - Name: laterality
+                Type: STRING
+              - Name: anatomic_organ_subdivision
+                Type: STRING
+              - Name: site_of_primary_tumor_other
+                Type: STRING
+              - Name: treatment_outcome_first_course
+                Type: STRING
+              - Name: new_tumor_event_dx_indicator
+                Type: STRING
+              - Name: initial_pathologic_dx_year
+                Type: STRING
+              - Name: method_initial_path_dx
+                Type: STRING
+              - Name: method_initial_path_dx_other
+                Type: STRING
+              - Name: lymph_nodes_examined
+                Type: STRING
+              - Name: lymph_nodes_examined_count
+                Type: STRING
+              - Name: lymph_nodes_examined_he_count
+                Type: STRING
+              - Name: lymph_nodes_examined_ihc_count
+                Type: STRING
+              - Name: pos_lymph_node_location
+                Type: STRING
+              - Name: other_pos_node_location
+                Type: STRING
+              - Name: ajcc_tumor_clinical_ct
+                Type: STRING
+              - Name: ajcc_tumor_pathologic_pt
+                Type: STRING
+              - Name: ajcc_nodes_clinical_cn
+                Type: STRING
+              - Name: ajcc_metastasis_clinical_cm
+                Type: STRING
+              - Name: ajcc_clinical_tumor_stage
+                Type: STRING
+              - Name: ajcc_pathologic_tumor_stage
+                Type: STRING
+              - Name: followup_lost_to
+                Type: STRING
+              - Name: age_at_initial_pathologic_diagnosis
+                Type: STRING
+              - Name: cancer_diagnosis_cancer_type_icd9_text_name
+                Type: STRING
+              - Name: days_to_form_completion
+                Type: STRING
+              - Name: days_to_hiv_diagnosis
+                Type: STRING
+              - Name: days_to_initial_pathologic_diagnosis
+                Type: STRING
+              - Name: days_to_patient_progression_free
+                Type: STRING
+              - Name: days_to_sample_procurement
+                Type: STRING
+              - Name: days_to_tumor_progression
+                Type: STRING
+              - Name: disease_code
+                Type: STRING
+              - Name: egfr_mutation_identified
+                Type: STRING
+              - Name: eml4_alk_translocation_identified
+                Type: STRING
+              - Name: extranodal_involvement
+                Type: STRING
+              - Name: family_member_relationship_type
+                Type: STRING
+              - Name: icd_10
+                Type: STRING
+              - Name: icd_o_3_histology
+                Type: STRING
+              - Name: icd_o_3_site
+                Type: STRING
+              - Name: informed_consent_verified
+                Type: STRING
+              - Name: margin_status
+                Type: STRING
+              - Name: measure_of_response
+                Type: STRING
+              - Name: metastatic_site_at_diagnosis
+                Type: STRING
+              - Name: metastatic_site_at_diagnosis_other
+                Type: STRING
+              - Name: number_cycles
+                Type: STRING
+              - Name: patient_id
+                Type: STRING
+              - Name: pharm_regimen
+                Type: STRING
+              - Name: pharm_regimen_other
+                Type: STRING
+              - Name: prior_systemic_therapy_type
+                Type: STRING
+              - Name: project_code
+                Type: STRING
+              - Name: regimen_indication
+                Type: STRING
+              - Name: relative_family_cancer_history
+                Type: STRING
+              - Name: stage_other
+                Type: STRING
+              - Name: stem_cell_transplantation
+                Type: STRING
+              - Name: tissue_source_site
+                Type: STRING
+              - Name: histologic_diagnosis5
+                Type: STRING
+              - Name: histologic_diagnosis18
+                Type: STRING
+              - Name: age_began_smoking_in_years
+                Type: STRING
+              - Name: anatomic_neoplasm_subdivision_other
+                Type: STRING
+              - Name: death_cause_text
+                Type: STRING
+              - Name: hbv_test
+                Type: STRING
+              - Name: hcv_test
+                Type: STRING
+              - Name: height
+                Type: STRING
+              - Name: history_of_other_malignancy
+                Type: STRING
+              - Name: history_relevant_infectious_dx_other
+                Type: STRING
+              - Name: hpv_test
+                Type: STRING
+              - Name: kshv_hhv8_test
+                Type: STRING
+              - Name: lost_follow_up
+                Type: STRING
+              - Name: lymph_node_examined_count
+                Type: STRING
+              - Name: number_of_lymphnodes_positive_by_he
+                Type: STRING
+              - Name: number_of_lymphnodes_positive_by_ihc
+                Type: STRING
+              - Name: on_haart_therapy_at_cancer_diagnosis
+                Type: STRING
+              - Name: on_haart_therapy_prior_to_cancer_diagnosis
+                Type: STRING
+              - Name: patient_death_reason
+                Type: STRING
+              - Name: pos_lymph_node_location_other
+                Type: STRING
+              - Name: primary_lymph_node_presentation_assessment
+                Type: STRING
+              - Name: tumor_tissue_site
+                Type: STRING
+              - Name: weight
+                Type: STRING
+              - Name: partition_0
+                Type: STRING
+        PhysicalTable2:
+          RelationalTable:
+            DataSourceArn: !GetAtt DataSource.Arn
+            Schema: !ImportValue
+              Fn::Sub: '${Project}-ResourcePrefixLowercase'
+            Name: tcga_summary
+            InputColumns:
+              - Name: patient_id
+                Type: STRING
+              - Name: num_images
+                Type: DECIMAL
+              - Name: num_image_series
+                Type: DECIMAL
+              - Name: num_mutation_records
+                Type: DECIMAL
+              - Name: num_expression_records
+                Type: DECIMAL
+              - Name: num_cnv_records
+                Type: DECIMAL
+              - Name: num_clin_drug_records
+                Type: DECIMAL
+              - Name: num_clin_rad_records
+                Type: DECIMAL
+              - Name: num_clin_fol_records
+                Type: DECIMAL
+              - Name: num_clin_omf_records
+                Type: DECIMAL
+              - Name: num_clin_nte_records
+                Type: DECIMAL
+      LogicalTableMap:
+        LogicalTable1:
+          Alias: clinical_patient
+          DataTransforms:
+            - RenameColumnOperation:
+                ColumnName: patient_id
+                NewColumnName: patient_id[clinical_patient]
+            - RenameColumnOperation:
+                ColumnName: partition_0
+                NewColumnName: study_name
+          Source:
+            PhysicalTableId: PhysicalTable1
+        LogicalTable2:
+          Alias: tcga_summary
+          DataTransforms:
+            - CastColumnTypeOperation:
+                ColumnName: num_images
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_image_series
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_mutation_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_expression_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_cnv_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_clin_drug_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_clin_rad_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_clin_fol_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_clin_omf_records
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: num_clin_nte_records
+                NewColumnType: INTEGER
+          Source:
+            PhysicalTableId: PhysicalTable2
+        LogicalTable3:
+          Alias: Intermediate Table
+          DataTransforms:
+            - CreateColumnsOperation:
+                Columns:
+                  - ColumnName: age_at_dx_string
+                    ColumnId: 93b9c54c-ddec-471f-b113-32faf869f61c
+                    Expression: "ifelse(locate({age_at_initial_pathologic_diagnosis},\"[\") = 0,{age_at_initial_pathologic_diagnosis},\"0\")"
+            - CreateColumnsOperation:
+                Columns:
+                  - ColumnName: age_at_dx_numeric
+                    ColumnId: b38d8b30-d2dd-4c94-9d27-39e5f9fde4dc
+                    Expression: "parseInt({age_at_dx_string})"
+            - ProjectOperation:
+                ProjectedColumns:
+                  - bcr_patient_barcode
+                  - form_completion_date
+                  - race
+                  - ethnicity
+                  - location_lung_parenchyma
+                  - prospective_collection
+                  - retrospective_collection
+                  - gender
+                  - birth_days_to
+                  - history_other_malignancy
+                  - history_neoadjuvant_treatment
+                  - residual_tumor
+                  - tumor_status
+                  - ajcc_staging_edition
+                  - ecog_score
+                  - ajcc_nodes_pathologic_pn
+                  - karnofsky_score
+                  - ajcc_metastasis_pathologic_pm
+                  - radiation_treatment_adjuvant
+                  - vital_status
+                  - pharmaceutical_tx_adjuvant
+                  - tobacco_smoking_history_indicator
+                  - last_contact_days_to
+                  - tobacco_smoking_pack_years_smoked
+                  - death_days_to
+                  - pulmonary_function_test_indicator
+                  - fev1_percent_ref_prebroncholiator
+                  - fev1_percent_ref_postbroncholiator
+                  - fev1_fvc_ratio_prebroncholiator
+                  - fev1_fvc_ratio_postbroncholiator
+                  - carbon_monoxide_diffusion_dlco
+                  - kras_gene_analysis_indicator
+                  - kras_mutation_found
+                  - kras_mutation_identified_type
+                  - egfr_mutation_status
+                  - egfr_mutation_identified_type
+                  - eml4_alk_translocation_status
+                  - eml4_alk_analysis_type
+                  - tobacco_smoking_year_started
+                  - tobacco_smoking_year_stopped
+                  - histologic_diagnosis67
+                  - performance_status_timing
+                  - anatomic_organ_subdivision
+                  - site_of_primary_tumor_other
+                  - treatment_outcome_first_course
+                  - new_tumor_event_dx_indicator
+                  - initial_pathologic_dx_year
+                  - ajcc_tumor_pathologic_pt
+                  - ajcc_pathologic_tumor_stage
+                  - age_at_initial_pathologic_diagnosis
+                  - disease_code
+                  - icd_10
+                  - icd_o_3_histology
+                  - icd_o_3_site
+                  - patient_id[clinical_patient]
+                  - tissue_source_site
+                  - histologic_diagnosis18
+                  - anatomic_neoplasm_subdivision_other
+                  - study_name
+                  - num_images
+                  - num_image_series
+                  - num_mutation_records
+                  - num_expression_records
+                  - num_cnv_records
+                  - num_clin_drug_records
+                  - num_clin_rad_records
+                  - num_clin_fol_records
+                  - num_clin_omf_records
+                  - num_clin_nte_records
+                  - age_at_dx_numeric
+                  - age_at_dx_string
+          Source:
+            JoinInstruction:
+              LeftOperand: LogicalTable1
+              RightOperand: LogicalTable2
+              Type: LEFT
+              OnClause: "{bcr_patient_barcode} = {patient_id}"
+      Permissions:
+        - Principal: !Sub "arn:aws:quicksight:${AWS::Region}:${AWS::AccountId}:user/default/${QuicksightUserId}"
+          Actions:
+            - quicksight:UpdateDataSetPermissions
+            - quicksight:DescribeDataSet
+            - quicksight:DescribeDataSetPermissions
+            - quicksight:PassDataSet
+            - quicksight:DescribeIngestion
+            - quicksight:ListIngestions
+            - quicksight:UpdateDataSet
+            - quicksight:DeleteDataSet
+            - quicksight:CreateIngestion
+            - quicksight:CancelIngestion

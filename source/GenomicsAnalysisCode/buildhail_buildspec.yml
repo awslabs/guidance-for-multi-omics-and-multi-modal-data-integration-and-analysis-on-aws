@@ -15,11 +15,9 @@ phases:
           yum install -y lz4
           yum install -y lz4-devel
           git clone $HAIL_REPO
-          cd hail && git fetch && git checkout 0.1
-          ./gradlew -Dspark.version=2.2.0 shadowJar archiveZip
+          cd hail/hail && git checkout 0.2.93
+          make install HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.13 SPARK_VERSION=3.1.1
           cd build
-          pip download decorator==4.2.1
-          aws s3 cp decorator-4.2.1-py2.py3-none-any.whl s3://${RESOURCES_BUCKET}/artifacts/decorator.zip
-          aws s3 cp distributions/hail-python.zip s3://${RESOURCES_BUCKET}/artifacts/
+          aws s3 cp deploy/dist/hail-0.2.93-py3-none-any.whl s3://${RESOURCES_BUCKET}/artifacts/
           aws s3 cp libs/hail-all-spark.jar s3://${RESOURCES_BUCKET}/artifacts/
         fi

@@ -1,0 +1,599 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  This CloudFormation Template deploys Glue jobs and crawlers for TCGA
+  data
+
+Parameters:
+  ResourcesBucket:
+    Type: String
+
+  ResourcePrefix:
+    Type: String
+    
+  ResourcePrefixLowercase:
+    Type: String
+    
+  DatabaseName:
+    Type: String
+    Default: AUTO
+    Description: |
+      If not AUTO, references an existing Glue database for crawlers
+      to create tables in.
+    
+  DataLakeBucket:
+    Description: |
+      S3 bucket where results will be written. Bucketname needs to be
+      unique. The bucket name must respect the S3 bucket naming
+      conventions (can contain lowercase letters, numbers, periods and
+      hyphens).
+    Type: String
+    AllowedPattern: "((?=^.{3,63}$)(?!^(\\d+\\.)+\\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])\\.)*([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])$)|(^.{0}$))"
+    
+  ExistingBucket:
+    Description: Is this an existing bucket?
+    Type: String
+    AllowedValues:
+      - "Yes"
+      - "No"
+    Default: "No"
+
+Conditions:
+  BucketDoesNotExist:
+    Fn::Equals:
+      - !Ref ExistingBucket
+      - "No"
+
+  NeedsGlueDatabase: !Equals [!Ref DatabaseName, "AUTO"]
+
+Resources:
+
+  TCGAS3Bucket:
+    Type: AWS::S3::Bucket
+    Condition: BucketDoesNotExist
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref DataLakeBucket
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+             SSEAlgorithm: AES256
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "glue.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: athena_access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                Resource:
+                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
+        - PolicyName: kms_access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Decrypt
+                  - kms:Encrypt
+                Resource:
+                  - !ImportValue
+                      Fn::Sub: '${ResourcePrefix}-DataCatalogEncryptionKeyArn'
+        - PolicyName: "CrawlerAccess"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${DataLakeBucket}'
+                  - !Sub 'arn:aws:s3:::${DataLakeBucket}/*'
+              - Effect: "Allow"
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${ResourcesBucket}'
+                  - !Sub 'arn:aws:s3:::${ResourcesBucket}/*'
+      
+  TcgaLuadExpressionGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUAD"
+        "--data_type": "Gene Expression Quantification"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+  
+  TcgaLuadMutationGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUAD"
+        "--data_type": "Masked Somatic Mutation"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+   
+  TcgaLuadCnvGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUAD"
+        "--data_type": "Gene Level Copy Number"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+
+  TcgaLuadClinicalGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUAD"
+        "--data_type": "Clinical Supplement"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+
+  TcgaLuadImagingMetadataGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/image_api_glue.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUAD"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+      
+  TcgaLuscExpressionGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUSC"
+        "--data_type": "Gene Expression Quantification"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+  
+  TcgaLuscMutationGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUSC"
+        "--data_type": "Masked Somatic Mutation"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+   
+  TcgaLuscCnvGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUSC"
+        "--data_type": "Gene Level Copy Number"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+
+  TcgaLuscClinicalGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command: 
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/tcga_etl_common_job.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUSC"
+        "--data_type": "Clinical Supplement"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+
+  TcgaLuscImagingMetadataGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/image_api_glue.py"
+      DefaultArguments:
+        "--output_bucket": !Ref 'DataLakeBucket'
+        "--project": "TCGA-LUSC"
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+
+  TcgaSummaryGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${ResourcesBucket}/scripts/create_tcga_summary.py"
+      DefaultArguments:
+        "--bucket": !Ref 'DataLakeBucket'
+        "--workgroup": "primary"  # does not work when set to the solution wg
+        "--database": !If
+          - NeedsGlueDatabase
+          - !Ref TcgaDb
+          - !Ref DatabaseName
+      GlueVersion: "2.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+      
+  TCGAMutationCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-mut
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA mutation data
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['',['s3://',!Ref 'DataLakeBucket','/tcga-mutation']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+
+  TCGACNVCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-cnv
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA copy number data
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['',['s3://',!Ref 'DataLakeBucket','/tcga-cnv']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+
+  TCGAExpressionCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-exp
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA expression data
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['',['s3://',!Ref 'DataLakeBucket','/tcga-expression']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+
+  TCGAClinicalCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-clin
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA clinical data
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['',['s3://',!Ref 'DataLakeBucket','/tcga-clinical']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+
+  TCGAImagingMetadataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-img
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA imaging metadata
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['',['s3://',!Ref 'DataLakeBucket','/tcia-metadata']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+
+  TCGASummaryCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-sum
+      Role: !Ref GlueJobRole
+      Description: AWS Glue crawler to crawl TCGA summary data
+      DatabaseName: !If
+        - NeedsGlueDatabase
+        - !Ref TcgaDb
+        - !Ref DatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Join ['', ['s3://', !Ref DataLakeBucket, '/tcga-summary']]
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"      
+
+  TCGAWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      Description: "Workflow that kicks off exp job and crawler"
+
+  WorkflowStartTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-start
+      Type: ON_DEMAND
+      Description: Trigger for starting the workflow
+      Actions:
+        - JobName: !Ref TcgaLuadExpressionGlueJob
+        - JobName: !Ref TcgaLuadMutationGlueJob
+        - JobName: !Ref TcgaLuadCnvGlueJob
+        - JobName: !Ref TcgaLuadClinicalGlueJob
+        - JobName: !Ref TcgaLuadImagingMetadataGlueJob
+            
+        - JobName: !Ref TcgaLuscExpressionGlueJob
+        - JobName: !Ref TcgaLuscMutationGlueJob
+        - JobName: !Ref TcgaLuscCnvGlueJob
+        - JobName: !Ref TcgaLuscClinicalGlueJob
+        - JobName: !Ref TcgaLuscImagingMetadataGlueJob
+      WorkflowName: !Ref TCGAWorkflow
+
+  ExpCrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-exp
+      Type: "CONDITIONAL"
+      Description: "Description for a conditional job trigger"
+      Actions:
+        - CrawlerName: !Ref 'TCGAExpressionCrawler' 
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuadExpressionGlueJob'
+            State: SUCCEEDED
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuscExpressionGlueJob'
+            State: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  MutCrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-mut
+      Type: "CONDITIONAL"
+      Description: "Description for a conditional Mutation crawler job trigger"
+      Actions:
+        - CrawlerName: !Ref 'TCGAMutationCrawler' 
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuadMutationGlueJob'
+            State: SUCCEEDED
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuscMutationGlueJob'
+            State: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  CnvCrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-cnv
+      Type: "CONDITIONAL"
+      Description: "Description for a conditional CNV crawler job trigger"
+      Actions:
+        - CrawlerName: !Ref 'TCGACNVCrawler' 
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuadCnvGlueJob'
+            State: SUCCEEDED
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuscCnvGlueJob'
+            State: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  ClinCrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-clin
+      Type: "CONDITIONAL"
+      Description: "Description for a conditional Clinical crawler job trigger"
+      Actions:
+        - CrawlerName: !Ref 'TCGAClinicalCrawler' 
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuadClinicalGlueJob'
+            State: SUCCEEDED
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuscClinicalGlueJob'
+            State: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  ImMetaCrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-img
+      Type: "CONDITIONAL"
+      Description: "Description for a conditional Clinical crawler job trigger"
+      Actions:
+        - CrawlerName: !Ref 'TCGAImagingMetadataCrawler' 
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuadImagingMetadataGlueJob'
+            State: SUCCEEDED
+          - LogicalOperator: EQUALS
+            JobName: !Ref 'TcgaLuscImagingMetadataGlueJob'
+            State: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  RunSummaryJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub ${ResourcePrefixLowercase}-tcga-sum
+      Type: "CONDITIONAL"
+      Description: "Build TCGA summary"
+      Actions:
+        - JobName: !Ref TcgaSummaryGlueJob
+      StartOnCreation: true
+      Predicate:
+        Logical: AND
+        Conditions:
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref TCGAMutationCrawler
+            CrawlState: SUCCEEDED
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref TCGACNVCrawler
+            CrawlState: SUCCEEDED
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref TCGAExpressionCrawler
+            CrawlState: SUCCEEDED
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref TCGAClinicalCrawler
+            CrawlState: SUCCEEDED
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref TCGAImagingMetadataCrawler
+            CrawlState: SUCCEEDED
+      WorkflowName: !Ref TCGAWorkflow
+
+  TcgaDb:
+    Type: AWS::Glue::Database
+    Condition: NeedsGlueDatabase
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Description: "AWS Glue container to hold tables for the TCGA crawlers"
+        
+      
+Outputs:
+  DataLakeBucket:
+    Value: !Ref DataLakeBucket
+
+  TCGAWorkflow:
+    Value: !Ref TCGAWorkflow
+
+  CreateQuicksightLink:
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudformation/home\
+      ?region=${AWS::Region}#/stacks/create/review\
+      ?templateURL=https://s3.${AWS::Region}.amazonaws.com/${ResourcesBucket}/quicksight_cfn.yml\
+      &stackName=${ResourcePrefix}-Quicksight\
+      &param_Project=${ResourcePrefix}"

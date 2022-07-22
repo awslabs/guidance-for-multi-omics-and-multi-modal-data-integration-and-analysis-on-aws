@@ -35,15 +35,28 @@ wait_for_pipeline() {
       printf '.'
       sleep 30
     elif [ "${stage_status}" == "Succeeded" ]; then
-      message="Pipeline execution succeeded for commit: ${commit_id}"
+      message="CodePipeline execution succeeded for commit: ${commit_id}"
       break
     elif [ "${stage_status}" == "Failed" ]; then
-      message="Pipeline execution Failed for commit: ${commit_id}"
+      message="CodePipeline execution Failed for commit: ${commit_id}"
       break
     fi
 
   done
   printf "\n${message}\n"
+  if [ "${stage_status}" == "Failed" ]; then exit 1; fi
+}
+
+copy_unpack_zip() {
+  local source_artifact=${1}
+  local dest_prefix=${2}
+
+  echo "Unpacking ${source_artifact} to ${dest_prefix}"
+  aws s3 cp ${source_artifact} ./temporary.zip
+  mkdir stage
+  pushd stage; unzip ../temporary.zip; popd
+  aws s3 sync stage/ ${dest_prefix}
+  rm -rf stage temporary.zip
 }
 
 copy_test_data() {
@@ -53,10 +66,15 @@ copy_test_data() {
 
   local data_lake_bucket=$(aws cloudformation describe-stacks --stack-name ${pipe_stackname} --query 'Stacks[].Outputs[?OutputKey==`DataLakeBucket`].OutputValue' --output text)
 
-  wget https://${artifact_bucket}.s3.amazonaws.com/${artifact_key_prefix}/variants/onekg-chr22-by_sample/chr22.parquet.zip
-  unzip chr22.parquet.zip
-  aws s3 cp --recursive chr22.parquet/ s3://${data_lake_bucket}/variants/parquet/onekg-chr22-by_sample
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/variants/onekg-chr22-by_sample/chr22.parquet.zip s3://${data_lake_bucket}/variants/parquet/onekg-chr22-by_sample/
 
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-clinical.zip s3://${data_lake_bucket}/
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-cnv.zip s3://${data_lake_bucket}/
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-expression.zip s3://${data_lake_bucket}/
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-mutation.zip s3://${data_lake_bucket}/
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcia-metadata.zip s3://${data_lake_bucket}/
+  copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-summary.zip s3://${data_lake_bucket}/
+  
   aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/variants/vcf/variants.vcf.bgz s3://${data_lake_bucket}/variants/vcf/variants.vcf.bgz
   aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/variants/vcf/part-00000-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet s3://${data_lake_bucket}/variants/parquet/vcf/part-00000-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet
   aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/variants/vcf/part-00001-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet s3://${data_lake_bucket}/variants/parquet/vcf/part-00001-a73946db-afb7-49a5-8bbb-621cb57637c2-c000.snappy.parquet

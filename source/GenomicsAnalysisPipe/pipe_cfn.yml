@@ -157,16 +157,18 @@ Resources:
                 ProjectName: !Sub ${ResourcePrefix}CopyResources
               InputArtifacts:
                 - Name: SourceStageOutput
+              OutputArtifacts:
+                - Name: QuicksightTemplate
         - Name: CreateStack
           Actions:
-            - Name: CreateStack
+            - Name: CreateGenomicsStack
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
                 Provider: CloudFormation
                 Version: 1
               Configuration:
-                StackName: !Sub ${ResourcePrefix}
+                StackName: !Sub ${ResourcePrefix}-Genomics
                 ActionMode: CREATE_UPDATE
                 Capabilities: CAPABILITY_NAMED_IAM
                 RoleArn: !Sub ${CloudFormationRole.Arn}
@@ -183,6 +185,44 @@ Resources:
                 - Name: SourceStageOutput
               OutputArtifacts: []
               RunOrder: 3
+            - Name: CreateImagingStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                StackName: !Sub ${ResourcePrefix}-Imaging
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Sub ${CloudFormationRole.Arn}
+                TemplatePath: !Sub SourceStageOutput::TCIA_etl.yaml
+                ParameterOverrides: !Sub |
+                  {
+                    "ResourcePrefix": "${ResourcePrefix}",
+                    "ResourcePrefixLowercase" : "${ResourcePrefixLowercase}",
+                    "DatabaseName": "${ResourcePrefixLowercase}",
+                    "ResourcesBucket" : "${ResourcesBucket}",
+                    "DataLakeBucket": "${DataLakeBucket}",
+                    "ExistingBucket": "Yes"
+                  }
+              InputArtifacts:
+                - Name: SourceStageOutput
+              OutputArtifacts: []
+              RunOrder: 4
+            - Name: SaveQuicksightStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: 1
+              Configuration:
+                BucketName: !Ref ResourcesBucket
+                Extract: true
+              InputArtifacts:
+                - Name: QuicksightTemplate
+              OutputArtifacts: []
+              RunOrder: 5
 
   CloudFormationRole:
     Type: AWS::IAM::Role
@@ -247,6 +287,8 @@ Resources:
                   - glue:CreateDatabase
                   - glue:UpdateDatabase
                   - glue:DeleteDatabase
+                  - glue:GetDatabase
+                  - glue:GetDatabases
                   - glue:GetCrawler
                   - glue:CreateCrawler
                   - glue:UpdateCrawler
@@ -269,6 +311,10 @@ Resources:
                   - glue:CreateTable
                   - glue:UpdateTable
                   - glue:DeleteTable
+                  - glue:SearchTables
+                  - glue:GetTable
+                  - glue:GetTables
+                  - glue:GetPartitions
                 Resource:
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${ResourcePrefixLowercase}
@@ -288,10 +334,11 @@ Resources:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ResourcePrefix}*
               - Effect: Allow
                 Action:
+                  - athena:GetWorkGroup
                   - athena:CreateWorkGroup
                   - athena:DeleteWorkGroup
                 Resource: 
-                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}
+                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}-${AWS::Region}
               - Effect: Allow
                 Action:
                   - kms:CreateKey
@@ -325,7 +372,7 @@ Resources:
         rules_to_suppress:
           - id: W11
             reason: Glue does not support resource-level permissions for these actions.
-
+            
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -396,7 +443,9 @@ Resources:
                   - cloudformation:UpdateStack
                   - cloudformation:DescribeStacks
                 Effect: Allow
-                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}/*
+                Resource:
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}-Genomics/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}-Imaging/*
         - PolicyName: IamAccess
           PolicyDocument:
             Version: 2012-10-17
@@ -427,6 +476,8 @@ Resources:
                 Resource:
                   - !Sub ${BuildBucket.Arn}
                   - !Sub ${BuildBucket.Arn}/*
+                  - !Sub ${ResourcesBucket.Arn}
+                  - !Sub ${ResourcesBucket.Arn}/*
         - PolicyName: CodeBuildAccess
           PolicyDocument:
             Version: 2012-10-17
@@ -575,10 +626,14 @@ Outputs:
   DataLakeBucket:
     Value: !Ref DataLakeBucket
     Export:
-      Name: !Sub ${AWS::StackName}-DataLakeBucket
+      Name: !Sub ${ResourcePrefix}-DataLakeBucket
   DataLakeBucketArn:
     Value: !GetAtt DataLakeBucket.Arn
     Export:
-      Name: !Sub ${AWS::StackName}-DataLakeBucketArn
+      Name: !Sub ${ResourcePrefix}-DataLakeBucketArn
+  ResourcePrefixLowercase:
+    Value: !Ref ResourcePrefixLowercase
+    Export:
+      Name: !Sub ${ResourcePrefix}-ResourcePrefixLowercase
 
   # aws cloudformation update-stack --stack-name ${PROJECT_NAME:-GenomicsAnalysis}-Pipeline --template-body file://pipe_cfn.yml --capabilities CAPABILITY_NAMED_IAM --output text --parameters ParameterKey=ResourcePrefix,ParameterValue=${PROJECT_NAME:-GenomicsAnalysis} ParameterKey=ResourcePrefixLowercase,ParameterValue=$(echo ${PROJECT_NAME:-GenomicsAnalysis} | tr '[:upper:]' '[:lower:]'); aws cloudformation wait stack-update-complete --stack-name ${PROJECT_NAME:-GenomicsAnalysis}-Pipeline

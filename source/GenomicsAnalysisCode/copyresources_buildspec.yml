@@ -8,3 +8,6 @@ phases:
   build:
     commands:
       - aws s3 sync ./resources s3://${RESOURCES_BUCKET} --size-only
+artifacts:
+  files:
+    - quicksight_cfn.yml

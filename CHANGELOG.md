@@ -11,3 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2020-08-20
 ### Added
 - Removed "Admin" as a key administrator from data catalog encryption key so an "Admin" role is not required to exist in the account for the solution to install and work.
+
+## [2.0.0] - 2022-06-20
+### Added
+- Added guidance for multi-omics multi-modal analysis using The Cancer Genome Atlas (TCGA) and The Cancer Genome Imaging Atlas (TCIA)
