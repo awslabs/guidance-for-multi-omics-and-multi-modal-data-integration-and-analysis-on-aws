@@ -1,8 +1,8 @@
 # Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
-This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
+This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This guidance demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
 
-## Solution Setup
-You can setup the solution in your account by clicking the "Deploy sample code on Console" button on the [solution home page](https://aws.amazon.com/solutions/guidance/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis/).
+## Guidance Setup
+You can setup this guidance in your account by clicking the "Deploy sample code on Console" button on the [guidance home page](https://aws.amazon.com/solutions/guidance/multi-omics-and-multi-modal-data-integration-and-analysis/).
 
 ## Running unit tests for customization
 * Clone the repository, then make the desired code changes
@@ -29,7 +29,7 @@ export REGION=my-region
 export SOLUTION_NAME=genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena
 export VERSION=latest # version number for the customized code
 ```
-_Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution.
+_Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized guidance.
 
 * Now build the distributable:
 ```
@@ -108,8 +108,8 @@ aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/
 
 ***
 
-This solution collects anonymous operational metrics to help AWS improve the
-quality of features of the solution. For more information, including how to disable
+This guidance collects anonymous operational metrics to help AWS improve the
+quality of features of the guidance. For more information, including how to disable
 this capability, please see the [implementation guide](https://docs.aws.amazon.com/solutions/latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws/appendix-i.html).
 
 ---
