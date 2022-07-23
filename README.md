@@ -23,7 +23,7 @@ chmod +x ./run-unit-tests.sh
 4. Clone this repo into that environment.
 
 ## Building and deploying distributable for customization
-* Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements.
+1. Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements.
 ```
 export DIST_OUTPUT_BUCKET=my-bucket-name # bucket where customized code will reside
 export REGION=my-region
@@ -33,40 +33,41 @@ export VERSION=latest # version number for the customized code
 ```
 _Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution.
 
-* Now build the distributable:
+2. Build the distributable.
 ```
 chmod +x ./build-s3-dist.sh
 ./build-s3-dist.sh $DIST_OUTPUT_BUCKET $SOLUTION_NAME $VERSION
 ```
 
-* Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed.
+3. Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed.
 ```
 aws s3 cp ./dist/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION/ --recursive
 ```
 
-* deploy global assets
+4. Deploy the global assets.
 
 ```
 aws s3 cp ./global-s3-assets/ s3://$DIST_OUTPUT_BUCKET/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-* deploy regional assets
+5. Deploy the regional assets.
  
 ```
 aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-* copy static assets
+6. Copy the static assets.
  
 ```
 ./copy_static_files.sh
 ```
 
-* Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
+7. Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
 
-* Go to CloudFormation and create a new stack using the template URL copied.
+8. Go to the AWS CloudFormation Console and create a new stack using the template URL copied.
 
-## File Structure
+# File Structure
+The overall file structure for the application.
 
 ```
 ├── ATTRIBUTION.txt
