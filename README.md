@@ -41,13 +41,13 @@ chmod +x ./build-s3-dist.sh
 
 3. Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed.
 ```
-aws s3 cp ./dist/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION/ --recursive
+aws s3 cp ./$SOLUTION_NAME.template s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION/
 ```
 
 4. Deploy the global assets.
 
 ```
-aws s3 cp ./global-s3-assets/ s3://$DIST_OUTPUT_BUCKET/$SOLUTION_NAME/$VERSION --recursive
+aws s3 cp ./global-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION --recursive
 ```
 
 5. Deploy the regional assets.
@@ -59,7 +59,7 @@ aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/
 6. Copy the static assets.
  
 ```
-./copy_static_files.sh
+./copy-static-files.sh
 ```
 
 7. Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
