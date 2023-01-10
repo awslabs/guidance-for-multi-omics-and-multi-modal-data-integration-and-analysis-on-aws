@@ -15,3 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2022-06-20
 ### Added
 - Added guidance for multi-omics multi-modal analysis using The Cancer Genome Atlas (TCGA) and The Cancer Genome Imaging Atlas (TCIA)
+
+## [3.0.0] - 2022-06-20
+### Added
+- Added guidance on working with a Reference Store, Variant Store & Annotation Store in Amazon Omics in a multi-modal context.
+- Replaced ETL pipelines for Genomics data (1k, clinvar and example VCF) with Amazon Omics 

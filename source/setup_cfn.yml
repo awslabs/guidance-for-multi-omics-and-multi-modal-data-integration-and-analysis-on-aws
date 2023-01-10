@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: |
-  (SO0077) - This Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
+  (SO0077) - This Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1)Provision Amazon Omics resources to ingest, store and query genomics data, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake. Version v3.0.0.
 
 Mappings:
   Send:
@@ -170,6 +170,7 @@ Resources:
                   Resource:
                     - !Sub arn:aws:iam::${AWS::AccountId}:role/${Project}*
                     - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/${Project}*
+                    - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-quicksight-service-role-v0
           - PolicyName: CodeBuildAccess
             PolicyDocument:
               Statement:
@@ -256,21 +257,10 @@ Resources:
                     !Join
                       - ''
                       - - 'arn:aws:s3:::'
-                        - !FindInMap ["SourceCode", "General", "S3Bucket"]
-                        - '/*'
-                - Effect: Allow
-                  Action:
-                    - s3:GetObject
-                  Resource:
-                    !Join
-                      - ''
-                      - - 'arn:aws:s3:::'
                         - !Join
                             - '-'
                             - - !FindInMap ["SourceCode", "General", "S3Bucket"]
                               - Ref: "AWS::Region"
-                        - '/'
-                        - !FindInMap ["SourceCode", "General", "KeyPrefix"]
                         - '/*'
                 - Effect: Allow
                   Action:
@@ -279,7 +269,10 @@ Resources:
                     !Join
                       - ''
                       - - 'arn:aws:s3:::'
-                        - !FindInMap ["SourceCode", "General", "S3Bucket"]
+                        - !Join
+                            - '-'
+                            - - !FindInMap ["SourceCode", "General", "S3Bucket"]
+                              - Ref: "AWS::Region"
 
                 - Effect: Allow
                   Action:
@@ -297,14 +290,6 @@ Resources:
                   Resource:
                     - arn:aws:s3:::*pipe*
                     - arn:aws:s3:::*pipe*/*
-                - Effect: Allow
-                  Action:
-                    - s3:ListBucket
-                  Resource:
-                    !Join
-                      - ''
-                      - - 'arn:aws:s3:::'
-                        - !FindInMap ["SourceCode", "General", "S3Bucket"]
                 - Effect: Allow
                   Action:
                     - s3:CreateBucket
@@ -357,7 +342,7 @@ Resources:
             Value: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
           - Name: ARTIFACT_KEY_PREFIX
             Value: !FindInMap ["SourceCode", "General", "KeyPrefix"]
-        Image: aws/codebuild/standard:3.0
+        Image: aws/codebuild/standard:4.0
         Type: LINUX_CONTAINER
       ServiceRole: !Sub ${CodeBuildRole}
       TimeoutInMinutes: 60

@@ -56,7 +56,7 @@ Resources:
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:3.0
+        Image: aws/codebuild/standard:4.0
         EnvironmentVariables:
           - Name: RESOURCES_BUCKET
             Value: !Sub ${ResourcesBucket}
@@ -70,36 +70,34 @@ Resources:
           - id: W32
             reason: Artifact outputs are encrypted by default.
 
-  CodeBuildBuildHailProject:
+  CodeBuildOmicsResourcesProject:
     Type: AWS::CodeBuild::Project
     DependsOn:
       - BuildBucket
       - CodeBuildRole
       - ResourcesBucket
     Properties:
-      Name: !Sub ${ResourcePrefix}BuildHail
-      Description: !Sub ${ResourcePrefix}BuildHail
+      Name: !Sub ${ResourcePrefix}OmicsResources
+      Description: !Sub ${ResourcePrefix}OmicsResources
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_MEDIUM
+        ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/amazonlinux2-x86_64-standard:2.0
         EnvironmentVariables:
-          - Name: HAIL_REPO
-            Value: https://github.com/hail-is/hail.git
           - Name: RESOURCES_BUCKET
             Value: !Sub ${ResourcesBucket}
       ServiceRole: !Sub ${CodeBuildRole.Arn}
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildhail_buildspec.yml            
+        BuildSpec: omicsresources_buildspec.yml            
     Metadata:
       cfn_nag:
         rules_to_suppress:
           - id: W32
             reason: Artifact outputs are encrypted by default.
-
+            
   Repo:
     DeletionPolicy: Retain
     Type: AWS::CodeCommit::Repository
@@ -111,7 +109,6 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     DependsOn:
       - CodeBuildCopyResourcesProject
-      - CodeBuildBuildHailProject
       - CodePipelineRole
       - Repo
     Properties:
@@ -137,28 +134,30 @@ Resources:
                 - Name: SourceStageOutput
         - Name: Build
           Actions:
-            - Name: BuildHail
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: 1
-              Configuration:
-                ProjectName: !Sub ${ResourcePrefix}BuildHail
-              InputArtifacts:
-                - Name: SourceStageOutput
             - Name: CopyResources
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
+              RunOrder: 1
               Configuration:
                 ProjectName: !Sub ${ResourcePrefix}CopyResources
               InputArtifacts:
                 - Name: SourceStageOutput
               OutputArtifacts:
                 - Name: QuicksightTemplate
+            - Name: OmicsResources
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${ResourcePrefix}OmicsResources
+              InputArtifacts:
+                - Name: SourceStageOutput
         - Name: CreateStack
           Actions:
             - Name: CreateGenomicsStack
@@ -205,6 +204,28 @@ Resources:
                     "ResourcesBucket" : "${ResourcesBucket}",
                     "DataLakeBucket": "${DataLakeBucket}",
                     "ExistingBucket": "Yes"
+                  }
+              InputArtifacts:
+                - Name: SourceStageOutput
+              OutputArtifacts: []
+              RunOrder: 4
+            - Name: CreateOmicsStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                StackName: !Sub ${ResourcePrefix}-Omics
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Sub ${CloudFormationRole.Arn}
+                TemplatePath: !Sub SourceStageOutput::omics_cfn.yml
+                ParameterOverrides: !Sub |
+                  {
+                    "OmicsResourcesS3Bucket" : "${ResourcesBucket}",
+                    "OmicsDataS3Bucket" : "${DataLakeBucket}",
+                    "OmicsResourcePrefix": "${ResourcePrefix}Omics"
                   }
               InputArtifacts:
                 - Name: SourceStageOutput
@@ -284,11 +305,17 @@ Resources:
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
               - Effect: Allow
                 Action:
+                  - glue:GetDatabases
+                  - glue:SearchTables
+                  - iam:ListUsers
+                  - iam:ListRoles
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - glue:CreateDatabase
                   - glue:UpdateDatabase
                   - glue:DeleteDatabase
                   - glue:GetDatabase
-                  - glue:GetDatabases
                   - glue:GetCrawler
                   - glue:CreateCrawler
                   - glue:UpdateCrawler
@@ -311,7 +338,6 @@ Resources:
                   - glue:CreateTable
                   - glue:UpdateTable
                   - glue:DeleteTable
-                  - glue:SearchTables
                   - glue:GetTable
                   - glue:GetTables
                   - glue:GetPartitions
@@ -324,6 +350,7 @@ Resources:
                   - lambda:CreateFunction
                   - lambda:DeleteFunction
                   - lambda:GetFunctionConfiguration
+                  - lambda:GetFunction
                   - lambda:InvokeFunction
                   - lambda:ListTags
                   - lambda:TagResource
@@ -332,6 +359,14 @@ Resources:
                   - lambda:UpdateFunctionConfiguration
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ResourcePrefix}*
+              - Effect: Allow
+                Action:
+                  - lambda:PublishLayerVersion
+                  - lambda:DeleteLayerVersion
+                  - lambda:GetLayerVersion
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:OmicsApiModels
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:OmicsApiModels:*
               - Effect: Allow
                 Action:
                   - athena:GetWorkGroup
@@ -346,12 +381,28 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
+                  - lakeformation:GrantPermissions
+                  - lakeformation:ListPermissions
+                  - lakeformation:BatchGrantPermissions
+                  - lakeformation:RevokePermissions
+                  - lakeformation:BatchRevokePermissions
+                Resource: !Sub arn:aws:lakeformation:${AWS::Region}:${AWS::AccountId}:catalog:${AWS::AccountId} 
+              - Effect: Allow
+                Action:
                   - s3:CreateBucket
                   - s3:DeleteBucket
                   - s3:GetObject
                 Resource:
                   - !Sub ${BuildBucket.Arn}
                   - !Sub ${BuildBucket.Arn}/*
+                  - !Sub ${ResourcesBucket.Arn}
+                  - !Sub ${ResourcesBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub ${ResourcesBucket.Arn}/artifacts/*
+                  - arn:aws:s3:::aws-genomics-static-us-east-1/*
               - Effect: Allow
                 Action:
                   - sagemaker:CreateNotebookInstanceLifecycleConfig
@@ -367,6 +418,11 @@ Resources:
                 Resource:
                   - !Sub arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance-lifecycle-config/${ResourcePrefixLowercase}*
                   - !Sub arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${ResourcePrefixLowercase}*
+              - Effect: Deny
+                Action:
+                  - lakeformation:GetDataLakeSettings
+                  - lakeformation:PutDataLakeSettings
+                Resource: '*'
     Metadata:
       cfn_nag:
         rules_to_suppress:
@@ -403,7 +459,9 @@ Resources:
                   - s3:GetObject
                   - s3:GetObjectVersion
                   - s3:PutObject
-                Resource: !Sub ${BuildBucket.Arn}/*
+                Resource: 
+                  - !Sub ${BuildBucket.Arn}/*
+                  - !Sub ${ResourcesBucket.Arn}/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -446,6 +504,7 @@ Resources:
                 Resource:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}-Genomics/*
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}-Imaging/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ResourcePrefix}-Omics/*
         - PolicyName: IamAccess
           PolicyDocument:
             Version: 2012-10-17
@@ -488,7 +547,7 @@ Resources:
                 Effect: Allow
                 Resource:
                   - !GetAtt CodeBuildCopyResourcesProject.Arn
-                  - !GetAtt CodeBuildBuildHailProject.Arn
+                  - !GetAtt CodeBuildOmicsResourcesProject.Arn
         - PolicyName: CodeCommitAccess
           PolicyDocument:
             Version: 2012-10-17

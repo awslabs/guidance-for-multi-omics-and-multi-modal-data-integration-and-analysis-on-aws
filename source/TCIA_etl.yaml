@@ -438,7 +438,6 @@ Resources:
         - JobName: !Ref TcgaLuadCnvGlueJob
         - JobName: !Ref TcgaLuadClinicalGlueJob
         - JobName: !Ref TcgaLuadImagingMetadataGlueJob
-            
         - JobName: !Ref TcgaLuscExpressionGlueJob
         - JobName: !Ref TcgaLuscMutationGlueJob
         - JobName: !Ref TcgaLuscCnvGlueJob

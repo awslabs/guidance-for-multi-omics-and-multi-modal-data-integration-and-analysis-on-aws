@@ -11,18 +11,21 @@
 # *  and limitations under the License.                                                                                *
 # *********************************************************************************************************************/
 
-from __future__ import print_function
 from crhelper import CfnResource
 import logging
 import boto3
+from botocore.exceptions import ClientError 
 
 logger = logging.getLogger(__name__)
 # Initialise the helper, all inputs are optional, this example shows the defaults
 helper = CfnResource(json_logging=False, log_level='DEBUG', boto_level='CRITICAL')
 
+# Initiate client
 try:
-    codebuild = boto3.client('codebuild')
-    # pass
+    print("Attempt to initiate client")
+    omics_session = boto3.Session()
+    omics_client = omics_session.client('omics')
+    print("Attempt to initiate client complete")
 except Exception as e:
     helper.init_failure(e)
 
@@ -30,79 +33,82 @@ except Exception as e:
 @helper.create
 def create(event, context):
     logger.info("Got Create")
-    start_build_job(event, context)
+    import_annotation(event, context)
 
 
 @helper.update
 def update(event, context):
     logger.info("Got Update")
-    start_build_job(event, context)
+    import_annotation(event, context)
 
 
 @helper.delete
 def delete(event, context):
     logger.info("Got Delete")
-    start_build_job(event, context, action='teardown')
+    return "delete"
     # Delete never returns anything. Should not fail if the underlying resources are already deleted. Desired state.
-
 
 @helper.poll_create
 def poll_create(event, context):
     logger.info("Got Create poll")
-    return check_build_job_status(event, context)
+    return check_annotation_import_status(event, context)
 
 
 @helper.poll_update
 def poll_update(event, context):
     logger.info("Got Update poll")
-    return check_build_job_status(event, context)
+    return check_annotation_import_status(event, context)
 
 
 @helper.poll_delete
 def poll_delete(event, context):
     logger.info("Got Delete poll")
-    return check_build_job_status(event, context)
-
+    return "delete poll"
 
 def handler(event, context):
     helper(event, context)
 
-
-def start_build_job(event, context, action='setup'):
-    response = codebuild.start_build(
-        projectName=event['ResourceProperties']['CodeBuildProjectName'],
-        environmentVariablesOverride=[{
-            'name': 'SOLUTION_ACTION',
-            'value': action,
-            'type': 'PLAINTEXT'
-        }]
-    )
+def import_annotation(event, context):
+    omics_import_role_arn = event['ResourceProperties']['OmicsImportAnnotationRoleArn']
+    annotation_source_s3_uri = event['ResourceProperties']['AnnotationSourceS3Uri']
+    annotation_store_name = event['ResourceProperties']['AnnotationStoreName']
+    try:
+        print(f"Attempt to import annotation file: {annotation_source_s3_uri} to store: {annotation_store_name}")
+        response = omics_client.start_annotation_import_job(
+            destinationName=annotation_store_name,
+            roleArn=omics_import_role_arn,
+            items=[{'source': annotation_source_s3_uri}]
+            )
+    except ClientError as e:
+        raise Exception( "boto3 client error : " + e.__str__())
+    except Exception as e:
+       raise Exception( "Unexpected error : " +    e.__str__())
     logger.info(response)
+    helper.Data.update({"AnnotationImportJobId": response['jobId']})
+    return True
 
-    helper.Data.update({"JobID": response['build']['id']})
+def check_annotation_import_status(event, context):
+    annotation_import_job_id = helper.Data.get("AnnotationImportJobId")
 
-
-def check_build_job_status(event, context):
-    code_build_project_name = event['ResourceProperties']['CodeBuildProjectName']
-
-    if not helper.Data.get("JobID"):
-        raise ValueError("Job ID missing in the polling event.")
-
-    job_id = helper.Data.get("JobID")
-
-    # 'SUCCEEDED' | 'FAILED' | 'FAULT' | 'TIMED_OUT' | 'IN_PROGRESS' | 'STOPPED'
-    response = codebuild.batch_get_builds(ids=[job_id])
-    build_status = response['builds'][0]['buildStatus']
-
-    if build_status == 'IN_PROGRESS':
-        logger.info(build_status)
+    try:
+        response = omics_client.get_annotation_import_job(
+            jobId=annotation_import_job_id
+            )
+    except ClientError as e:
+        raise Exception( "boto3 client error : " + e.__str__())
+    except Exception as e:
+       raise Exception( "Unexpected error : " +    e.__str__())
+    status = response['status']
+    
+    if status in ['SUBMITTED', 'IN_PROGRESS', 'RUNNING', 'CREATING', 'QUEUED']:
+        logger.info(status)
         return None
     else:
-        if build_status == 'SUCCEEDED':
-            logger.info(build_status)
+        if status in ['READY', 'ACTIVE', 'COMPLETED', 'COMPLETE']:
+            logger.info(status)
             return True
         else:
-            msg = "Code Build job '{0}' in project '{1}' exited with a build status of '{2}'. Please check the code build job output log for more information." \
-                .format(job_id, code_build_project_name, build_status)
+            msg = f"Annotation Import Job ID : {annotation_import_job_id} has status {status}, exiting"
             logger.info(msg)
             raise ValueError(msg)
+

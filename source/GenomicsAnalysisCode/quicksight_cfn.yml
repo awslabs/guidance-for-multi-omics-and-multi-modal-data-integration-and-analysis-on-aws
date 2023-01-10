@@ -67,11 +67,13 @@ Resources:
       Type: ATHENA
       DataSourceParameters:
         AthenaParameters:
-          WorkGroup: !Join
-            - "-" 
-            - - !ImportValue
-                  Fn::Sub: '${Project}-ResourcePrefixLowercase'
-              - !Sub ${AWS::Region}
+          WorkGroup:
+            !Join
+              - '-'
+              - - !ImportValue
+                    Fn::Sub: '${Project}-ResourcePrefixLowercase'
+                - !Ref "AWS::Region"
+          
 
   DataSet:
     Type: AWS::QuickSight::DataSet

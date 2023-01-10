@@ -151,11 +151,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - glue:GetDatabases
-#                  - lakeformation:GetDataAccess
+                  - glue:GetDatabase
+                  - glue:GetTables
+                  - glue:GetTable
+                  - lakeformation:GetDataAccess
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - glue:GetDatabase
                   - glue:CreateDatabase
                 Resource:
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/default
@@ -186,6 +188,7 @@ Resources:
                   - athena:StartQueryExecution
                   - athena:GetQueryExecution
                   - athena:GetQueryResults
+                  - athena:GetWorkGroup
                 Resource:
                   - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${ResourcePrefixLowercase}-${AWS::Region}
 
@@ -209,45 +212,7 @@ Resources:
                   - kms:Encrypt
                 Resource:
                   - !GetAtt DataCatalogEncryptionKey.Arn
-
-  CrawlerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - glue.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
-      Policies:
-        - PolicyName: s3_access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${DataLakeBucket}/*
-        - PolicyName: kms_access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - kms:GenerateDataKey
-                  - kms:Decrypt
-                  - kms:Encrypt
-                Resource:
-                  - !GetAtt DataCatalogEncryptionKey.Arn
-
+                  
   WorkGroup:                
     Type: AWS::Athena::WorkGroup
     Properties: 
@@ -255,6 +220,9 @@ Resources:
       Name: !Sub ${ResourcePrefixLowercase}-${AWS::Region}
       RecursiveDeleteOption: True
       WorkGroupConfiguration: 
+        EngineVersion:
+          EffectiveEngineVersion: "Athena engine version 3"
+          SelectedEngineVersion: "Athena engine version 3"
         ResultConfiguration: 
           OutputLocation: !Sub s3://${DataLakeBucket}/results                  
               
@@ -379,83 +347,6 @@ Resources:
       DatabaseInput:
         Name: !Sub ${ResourcePrefixLowercase}
         Description: Data catalog for Human NGS Tertiary Analysis and Data Lakes solution
-
-  VcfToParquetJob:
-    Type: AWS::Glue::Job
-    Properties:
-      Command:
-        Name: glueetl
-        ScriptLocation: !Sub s3://${ResourcesBucket}/scripts/vcf_to_parquet.py
-      DefaultArguments:
-        --job-bookmark-option: job-bookmark-disable
-        --additional-python-modules: !Sub s3://${ResourcesBucket}/artifacts/hail-0.2.93-py3-none-any.whl
-        --extra-jars: !Sub s3://${ResourcesBucket}/artifacts/hail-all-spark.jar
-        --input_path: !Sub s3://${DataLakeBucket}/variants/vcf/variants.vcf.bgz
-        --output_path: !Sub s3a://${DataLakeBucket}/variants/parquet/vcf/
-      GlueVersion: "3.0"
-      AllocatedCapacity: 2
-      ExecutionProperty:
-        MaxConcurrentRuns: 2
-      MaxRetries: 0
-      Name: !Sub ${ResourcePrefixLowercase}-vcf-to-parquet
-      Role: !Ref JobRole
-
-  ClinvarTsvToParquetJob:
-    Type: AWS::Glue::Job
-    Properties:
-      Command:
-        Name: glueetl
-        ScriptLocation: !Sub s3://${ResourcesBucket}/scripts/clinvar_to_parquet.py
-      DefaultArguments:
-        --job-bookmark-option: job-bookmark-disable
-        --input_path: !Sub s3://${DataLakeBucket}/annotation/clinvar/variant_summary.txt.gz
-        --output_path: !Sub s3a://${DataLakeBucket}/annotation/parquet/clinvar/
-      GlueVersion: "3.0"
-      AllocatedCapacity: 2
-      ExecutionProperty:
-        MaxConcurrentRuns: 2
-      MaxRetries: 0
-      Name: !Sub ${ResourcePrefixLowercase}-clinvar-tsv-to-parquet
-      Role: !Ref JobRole
-
-  CohortCrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Name: !Sub ${ResourcePrefixLowercase}-cohort
-      Role: !GetAtt CrawlerRole.Arn
-      DatabaseName: !Ref DataCatalog
-      Targets:
-        S3Targets:
-          - Path: !Sub s3://${DataLakeBucket}/variants/parquet/onekg-chr22-by_sample/
-      SchemaChangePolicy:
-        UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: DEPRECATE_IN_DATABASE
-
-  SampleCrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Name: !Sub ${ResourcePrefixLowercase}-sample
-      Role: !GetAtt CrawlerRole.Arn
-      DatabaseName: !Ref DataCatalog
-      Targets:
-        S3Targets:
-          - Path: !Sub s3://${DataLakeBucket}/variants/parquet/vcf/
-      SchemaChangePolicy:
-        UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: DEPRECATE_IN_DATABASE
-
-  AnnotationCrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Name: !Sub ${ResourcePrefixLowercase}-annotation
-      Role: !GetAtt CrawlerRole.Arn
-      DatabaseName: !Ref DataCatalog
-      Targets:
-        S3Targets:
-          - Path: !Sub ${DataLakeBucket}/annotation/parquet/clinvar/
-      SchemaChangePolicy:
-        UpdateBehavior: UPDATE_IN_DATABASE
-        DeleteBehavior: DEPRECATE_IN_DATABASE
 
   RunbookLifecycle:
     Type: AWS::SageMaker::NotebookInstanceLifecycleConfig

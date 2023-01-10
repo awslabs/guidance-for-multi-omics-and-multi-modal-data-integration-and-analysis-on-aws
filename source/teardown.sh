@@ -10,12 +10,13 @@ export PIPE_STACKNAME=${RESOURCE_PREFIX}-Pipeline
 export GENE_STACKNAME=${RESOURCE_PREFIX}-Genomics
 export IMG_STACKNAME=${RESOURCE_PREFIX}-Imaging
 export QS_STACKNAME=${RESOURCE_PREFIX}-Quicksight
-
+export OMICS_STACKNAME=${RESOURCE_PREFIX}-Omics
 export REPOSITORY_NAME=${RESOURCE_PREFIX_LOWERCASE}
 
 HAS_QS_STACK=$(aws cloudformation describe-stacks --stack-name ${QS_STACKNAME} && echo 1)
 HAS_GENE_STACK=$(aws cloudformation describe-stacks --stack-name ${GENE_STACKNAME} && echo 1)
 HAS_IMG_STACK=$(aws cloudformation describe-stacks --stack-name ${IMG_STACKNAME} && echo 1)
+HAS_OMICS_STACK=$(aws cloudformation describe-stacks --stack-name ${OMICS_STACKNAME} && echo 1)
 HAS_PIPE_STACK=$(aws cloudformation describe-stacks --stack-name ${PIPE_STACKNAME} && echo 1)
 HAS_ZONE_STACK=$(aws cloudformation describe-stacks --stack-name ${ZONE_STACKNAME} && echo 1)
 
@@ -58,6 +59,10 @@ fi
 if [[ -n $HAS_GENE_STACK ]]; then
     aws cloudformation delete-stack --stack-name ${GENE_STACKNAME}
     aws cloudformation wait stack-delete-complete --stack-name ${GENE_STACKNAME}
+fi
+if [[ -n $HAS_OMICS_STACK ]]; then
+    aws cloudformation delete-stack --stack-name ${OMICS_STACKNAME}
+    aws cloudformation wait stack-delete-complete --stack-name ${OMICS_STACKNAME}
 fi
 if [[ -n $HAS_PIPE_STACK ]]; then
     aws cloudformation delete-stack --stack-name ${PIPE_STACKNAME}

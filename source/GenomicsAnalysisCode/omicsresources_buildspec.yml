@@ -1,0 +1,37 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+  build:
+    commands:
+      - |
+        # Declare all lambda functions
+        declare -a LambdaNames=("create_reference_store_lambda" "import_reference_lambda" "create_variant_store_lambda" "import_variant_lambda" "create_annotation_store_lambda" "import_annotation_lambda")
+
+        # iterate over each lambda 
+        for lambda in ${LambdaNames[@]}; do
+
+          COUNT=$(aws s3 ls s3://${RESOURCES_BUCKET}/omics/"$lambda".py | wc -l)
+          if [ $COUNT = 0 ]; then
+              echo "skipping Build, ${lambda}.py not found in  s3://${RESOURCES_BUCKET}/omics/"
+          else
+            echo "Building lambda zip for: ${lambda} "
+            mkdir tmp_${lambda}
+            cd tmp_${lambda}
+            echo "Download lambda py for: ${lambda} "
+            aws s3 cp s3://${RESOURCES_BUCKET}/omics/"$lambda".py .
+            echo "Installing pip packages"
+            pip3 install crhelper boto3==1.26.16 -t ./package
+            cd ./package
+            zip -r ../${lambda}.zip .
+            cd ..
+            echo "Zip lambda to artifact"
+            zip -g ${lambda}.zip ${lambda}.py
+            echo "Upload zip to s3://${RESOURCES_BUCKET}/artifacts/"
+            aws s3 cp ${lambda}.zip s3://${RESOURCES_BUCKET}/artifacts/
+            cd .. 
+            rm -rf tmp_${lambda}
+            echo "Done with ${lambda}"
+          fi
+        done

@@ -30,6 +30,7 @@ build_dist_dir="$template_dir/regional-s3-assets"
 source_dir="$template_dir/../source"
 
 cp $source_dir/setup_cfn.yml $template_dir/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template
+cp $source_dir/setup_cfn.yml $template_dir/$SOLUTION_NAME.template
 
 echo "------------------------------------------------------------------------------"
 echo "[Init] Clean old dist"
@@ -68,11 +69,10 @@ replace="s/%%VERSION%%/$3/g"
 echo "sed -i '' -e $replace $template_dist_dir/*.template"
 sed -i '' -e $replace $template_dist_dir/*.template
 
-mkdir $build_dist_dir/variants
-mkdir $build_dist_dir/variants/onekg-chr22-by_sample/
+mkdir -p $build_dist_dir/references/hg38
+mkdir -p $build_dist_dir/variants/1kg/
 mkdir $build_dist_dir/variants/vcf/
-mkdir $build_dist_dir/annotation
-mkdir $build_dist_dir/annotation/clinvar/
+mkdir -p $build_dist_dir/annotation/clinvar/
 mkdir $build_dist_dir/tcga/
 
 echo "------------------------------------------------------------------------------"
@@ -92,6 +92,10 @@ zip -r $bundle_dir/SolutionSetup.zip .
 # package the solution
 cd $source_dir
 zip -r $bundle_dir/Solution.zip .
+
+# package new lambdas here 
+
+# upload zips here 
 
 cd $bundle_dir
 cp Solution.zip $template_dist_dir/

@@ -135,6 +135,18 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:s3:::${ResourcesBucket}'
                   - !Sub 'arn:aws:s3:::${ResourcesBucket}/*'
+  
+  GlueLakeformationPermissons:
+    Type: AWS::LakeFormation::Permissions
+    Properties:
+      DataLakePrincipal:
+        DataLakePrincipalIdentifier: !GetAtt GlueJobRole.Arn
+      Permissions:
+        - CREATE_TABLE
+        - DESCRIBE
+      Resource:
+        DatabaseResource:
+          Name: !Sub ${ResourcePrefixLowercase}
       
   TcgaLuadExpressionGlueJob:
     Type: AWS::Glue::Job

@@ -1,8 +1,8 @@
 # Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
-This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake.
+This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake. This solution also demonstrates how to use AWS Omics to create and work with a Sequence Store, Reference Store and Variant Store in a multi-modal context.
 
 # Setup
-You can setup the solution in your account by clicking the "Deploy sample code on Console" button on the [solution home page](https://aws.amazon.com/solutions/guidance/multi-omics-and-multi-modal-data-integration-and-analysis/).
+You can setup the solution in your account by clicking the "Deploy sample code on Console" button on the [solution home page](https://aws.amazon.com/solutions/guidance/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis/).
 
 # Customization
 
@@ -23,53 +23,69 @@ chmod +x ./run-unit-tests.sh
 4. Clone this repo into that environment.
 
 ## Building and deploying distributable for customization
-1. Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements.
-```
-export DIST_OUTPUT_BUCKET=my-bucket-name # bucket where customized code will reside
-export REGION=my-region
+Configure the bucket name and region of your target Amazon S3 distribution bucket and run the following statements. 
 
-export SOLUTION_NAME=genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena
-export VERSION=latest # version number for the customized code
 ```
 _Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<aws_region>'; aws_region is where you are testing the customized solution.
+```
 
-2. Build the distributable.
+```
+#bucket where customized code will reside (without -<region> at the end. The -<region will be added>)
+export DIST_OUTPUT_BUCKET=my-bucket-name 
+
+#default region where resources will get created
+export REGION=my-region
+
+#default name of the solution
+export SOLUTION_NAME=genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena
+
+#version number for the customized code
+export VERSION=latest
+```
+
+#### Change to deployment directory.
+```
+cd deployment
+```
+
+#### Build the distributable.
 ```
 chmod +x ./build-s3-dist.sh
 ./build-s3-dist.sh $DIST_OUTPUT_BUCKET $SOLUTION_NAME $VERSION
 ```
 
-3. Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed.
+#### Deploy the distributable to an Amazon S3 bucket in your account. _Note:_ you must have the AWS Command Line Interface installed
 ```
 aws s3 cp ./$SOLUTION_NAME.template s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION/
 ```
 
-4. Deploy the global assets.
+#### Deploy the global assets.
 
 ```
 aws s3 cp ./global-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-5. Deploy the regional assets.
+#### Deploy the regional assets.
  
 ```
 aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/$VERSION --recursive
 ```
 
-6. Copy the static assets.
+#### Copy the static assets.
  
 ```
 ./copy-static-files.sh
 ```
 
-7. Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
+#### Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.
 
-8. Go to the AWS CloudFormation Console and create a new stack using the template URL copied.
+#### Go to the AWS CloudFormation Console and create a new stack using the template URL copied.
 
 # File Structure
 The overall file structure for the application.
 
 ```
+.
 ├── ATTRIBUTION.txt
 ├── CHANGELOG.md
 ├── CODE_OF_CONDUCT.md
@@ -77,42 +93,49 @@ The overall file structure for the application.
 ├── LICENSE.txt
 ├── NOTICE.txt
 ├── README.md
+├── buildspec.yml
+├── deploy.sh
 ├── deployment
-│   ├── build-s3-dist.sh
-│   ├── genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena.template
-│   └── run-unit-tests.sh
-└── source
-    ├── GenomicsAnalysisCode
-    │   ├── TCIA_etl.yaml
-    │   ├── awscli_test.sh
-    │   ├── buildhail_buildspec.yml
-    │   ├── code_cfn.yml
-    │   ├── copyresources_buildspec.yml
-    │   ├── quicksight_cfn.yml
-    │   ├── resources
-    │   │   ├── notebooks
-    │   │   │   ├── cohort-building.ipynb
-    │   │   │   ├── runbook.ipynb
-    │   │   │   └── summarize-tcga-datasets.ipynb
-    │   │   └── scripts
-    │   │       ├── clinvar_to_parquet.py
-    │   │       ├── create_tcga_summary.py
-    │   │       ├── image_api_glue.py
-    │   │       ├── run_tests.py
-    │   │       ├── tcga_etl_common_job.py
-    │   │       ├── transfer_tcia_images_glue.py
-    │   │       └── vcf_to_parquet.py
-    │   └── setup
-    │       ├── lambda.py
-    │       └── requirements.txt
-    ├── GenomicsAnalysisPipe
-    │   └── pipe_cfn.yml
-    ├── GenomicsAnalysisZone
-    │   └── zone_cfn.yml
-    ├── TCIA_etl.yaml
-    ├── setup.sh
-    ├── setup_cfn.yml
-    └── teardown.sh
+│   ├── build-s3-dist.sh
+│── source
+│   ├── GenomicsAnalysisCode
+│   │   ├── TCIA_etl.yaml
+│   │   ├── code_cfn.yml
+│   │   ├── copyresources_buildspec.yml
+│   │   ├── omics_cfn.yml
+│   │   ├── omicsresources_buildspec.yml
+│   │   ├── quicksight_cfn.yml
+│   │   ├── resources
+│   │   │   ├── notebooks
+│   │   │   │   ├── cohort-building.ipynb
+│   │   │   │   ├── runbook.ipynb
+│   │   │   │   └── summarize-tcga-datasets.ipynb
+│   │   │   ├── omics
+│   │   │   │   ├── create_annotation_store_lambda.py
+│   │   │   │   ├── create_reference_store_lambda.py
+│   │   │   │   ├── create_variant_store_lambda.py
+│   │   │   │   ├── import_annotation_lambda.py
+│   │   │   │   ├── import_reference_lambda.py
+│   │   │   │   └── import_variant_lambda.py
+│   │   │   └── scripts
+│   │   │       ├── create_tcga_summary.py
+│   │   │       ├── image_api_glue.py
+│   │   │       ├── run_tests.py
+│   │   │       ├── tcga_etl_common_job.py
+│   │   │       └── transfer_tcia_images_glue.py
+│   │   ├── run_crawlers.sh
+│   │   └── setup
+│   │       ├── lambda.py
+│   │       └── requirements.txt
+│   ├── GenomicsAnalysisPipe
+│   │   └── pipe_cfn.yml
+│   ├── GenomicsAnalysisZone
+│   │   └── zone_cfn.yml
+│   ├── TCIA_etl.yaml
+│   ├── setup.sh
+│   ├── setup_cfn.yml
+│   └── teardown.sh
+├── template_cfn.yml
 ```
 
 ***
