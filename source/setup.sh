@@ -60,6 +60,16 @@ copy_unpack_zip() {
   rm -rf stage temporary.zip
 }
 
+copy_and_upload() {
+  local source_artifact=${1}
+  local dest_artifact=${2}
+  local filename=${3}
+
+  aws s3 cp ${source_artifact} ${filename}
+  aws s3 cp ${filename} ${dest_artifact}
+  rm ${filename}
+}
+
 copy_test_data() {
   local artifact_bucket=${1}
   local artifact_key_prefix=${2}
@@ -75,11 +85,10 @@ copy_test_data() {
   copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcia-metadata.zip s3://${data_lake_bucket}/
   copy_unpack_zip s3://${artifact_bucket}/${artifact_key_prefix}/tcga/tcga-summary.zip s3://${data_lake_bucket}/
   
-  aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/annotation/clinvar/clinvar.vcf.gz s3://${data_lake_bucket}/annotation/vcf/clinvar/clinvar.vcf.gz
-  aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/variants/vcf/variants.vcf.gz s3://${data_lake_bucket}/variants/vcf/variants.vcf.gz
-  aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/variants/1kg/ALL.chr22.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.filtNA.vcf.gz s3://${data_lake_bucket}/variants/1kg/ALL.chr22.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.filtNA.vcf.gz
-  aws s3 cp s3://${artifact_bucket}/${artifact_key_prefix}/references/hg38/Homo_sapiens_assembly38.fasta s3://${data_lake_bucket}/references/hg38/Homo_sapiens_assembly38.fasta
-
+  copy_and_upload s3://${artifact_bucket}/${artifact_key_prefix}/annotation/clinvar/clinvar.vcf.gz s3://${data_lake_bucket}/annotation/vcf/clinvar/clinvar.vcf.gz clinvar.vcf.gz 
+  copy_and_upload s3://${artifact_bucket}/${artifact_key_prefix}/variants/vcf/variants.vcf.gz s3://${data_lake_bucket}/variants/vcf/variants.vcf.gz variants.vcf.gz
+  copy_and_upload s3://${artifact_bucket}/${artifact_key_prefix}/variants/1kg/ALL.chr22.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.filtNA.vcf.gz s3://${data_lake_bucket}/variants/1kg/ALL.chr22.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.filtNA.vcf.gz ALL.chr22.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.filtNA.vcf.gz  
+  copy_and_upload s3://${artifact_bucket}/${artifact_key_prefix}/references/hg38/Homo_sapiens_assembly38.fasta s3://${data_lake_bucket}/references/hg38/Homo_sapiens_assembly38.fasta Homo_sapiens_assembly38.fasta 
 }
 
 setup() {

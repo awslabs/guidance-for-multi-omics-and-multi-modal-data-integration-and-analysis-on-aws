@@ -342,7 +342,7 @@ Resources:
             Value: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
           - Name: ARTIFACT_KEY_PREFIX
             Value: !FindInMap ["SourceCode", "General", "KeyPrefix"]
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:6.0
         Type: LINUX_CONTAINER
       ServiceRole: !Sub ${CodeBuildRole}
       TimeoutInMinutes: 60
