@@ -34,12 +34,13 @@ _Note:_ You would have to create an S3 bucket with the prefix 'my-bucket-name-<a
 export DIST_OUTPUT_BUCKET=my-bucket-name 
 
 #default region where resources will get created
+#Use "us-east-1" to get publicly available data from AWS solution bucket
 export REGION=my-region
 
-#default name of the solution
+#default name of the solution (use this name to get publicly available test datasets from AWS S3 bucket)
 export SOLUTION_NAME=genomics-tertiary-analysis-and-data-lakes-using-aws-glue-and-amazon-athena
 
-#version number for the customized code
+#version number for the customized code (use this version to get publicly available test datasets from AWS S3 bucket)
 export VERSION=latest
 ```
 
@@ -74,7 +75,7 @@ aws s3 cp ./regional-s3-assets/ s3://$DIST_OUTPUT_BUCKET-$REGION/$SOLUTION_NAME/
 #### Copy the static assets.
  
 ```
-./copy-static-files.sh
+./copy-static-files.sh [Optional]AWSProfile
 ```
 
 #### Go to the DIST_OUTPUT_BUCKET and copy the OBJECT URL for latest/guidance-for-multi-omics-and-multi-modal-data-integration-and-analysis-on-aws.template.

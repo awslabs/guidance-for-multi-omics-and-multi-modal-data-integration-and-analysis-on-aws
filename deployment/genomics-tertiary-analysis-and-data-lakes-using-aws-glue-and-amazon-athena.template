@@ -287,6 +287,7 @@ Resources:
                     - s3:PutBucketPublicAccessBlock
                     - s3:PutBucketLogging
                     - s3:PutBucketAcl
+                    - s3:PutBucketOwnershipControls
                   Resource:
                     - arn:aws:s3:::*pipe*
                     - arn:aws:s3:::*pipe*/*
@@ -301,6 +302,7 @@ Resources:
                     - s3:PutBucketAcl
                     - s3:PutObject
                     - s3:PutObjectAcl
+                    - s3:PutBucketOwnershipControls
                   Resource:
                     - arn:aws:s3:::*pipe*
                     - arn:aws:s3:::*pipe*/*
@@ -342,7 +344,7 @@ Resources:
             Value: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
           - Name: ARTIFACT_KEY_PREFIX
             Value: !FindInMap ["SourceCode", "General", "KeyPrefix"]
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:6.0
         Type: LINUX_CONTAINER
       ServiceRole: !Sub ${CodeBuildRole}
       TimeoutInMinutes: 60

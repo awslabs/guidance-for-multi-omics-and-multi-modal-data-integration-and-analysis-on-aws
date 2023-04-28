@@ -1,2 +1,7 @@
 ./source/GenomicsAnalysisCode/setup/crhelper*
 ./source/GenomicsAnalysisCode/setup/tests*
+multi-omics.code-workspace
+bundle
+deployment/global-s3-assets
+deployment/regional-s3-assets
+source/GenomicsAnalysisCode/setup

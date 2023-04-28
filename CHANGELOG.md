@@ -20,3 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added guidance on working with a Reference Store, Variant Store & Annotation Store in Amazon Omics in a multi-modal context.
 - Replaced ETL pipelines for Genomics data (1k, clinvar and example VCF) with Amazon Omics 
+
+## [3.0.0] - 2023-04-28
+### Added
+- Update bucket creation steps to comply with https://aws.amazon.com/about-aws/whats-new/2023/04/amazon-s3-two-security-best-practices-buckets-default/

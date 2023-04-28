@@ -287,6 +287,7 @@ Resources:
                     - s3:PutBucketPublicAccessBlock
                     - s3:PutBucketLogging
                     - s3:PutBucketAcl
+                    - s3:PutBucketOwnershipControls
                   Resource:
                     - arn:aws:s3:::*pipe*
                     - arn:aws:s3:::*pipe*/*
@@ -301,6 +302,7 @@ Resources:
                     - s3:PutBucketAcl
                     - s3:PutObject
                     - s3:PutObjectAcl
+                    - s3:PutBucketOwnershipControls
                   Resource:
                     - arn:aws:s3:::*pipe*
                     - arn:aws:s3:::*pipe*/*

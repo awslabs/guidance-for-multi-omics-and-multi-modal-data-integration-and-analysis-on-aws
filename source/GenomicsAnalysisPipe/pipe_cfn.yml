@@ -587,11 +587,9 @@ Resources:
   BuildBucket:
     Type: AWS::S3::Bucket
     Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
       LoggingConfiguration:
         DestinationBucketName: !Ref LogsBucket
         LogFilePrefix: templates_logs/
@@ -608,11 +606,9 @@ Resources:
   DataLakeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
       LoggingConfiguration:
         DestinationBucketName: !Ref LogsBucket
         LogFilePrefix: templates_logs/
@@ -629,11 +625,9 @@ Resources:
   ResourcesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
       LoggingConfiguration:
         DestinationBucketName: !Ref LogsBucket
         LogFilePrefix: templates_logs/
@@ -651,11 +645,9 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::S3::Bucket
     Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
       AccessControl: LogDeliveryWrite
       BucketEncryption:
         ServerSideEncryptionConfiguration:
