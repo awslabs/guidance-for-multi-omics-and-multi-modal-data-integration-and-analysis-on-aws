@@ -4,6 +4,7 @@ phases:
     runtime-versions:
           python: 3.8
     commands:
+      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
       - apt-get update -y
   build:
     commands:
