@@ -1,4 +1,7 @@
 # Guidance for Multi-Omics and Multi-Modal Data Integration and Analysis on AWS
+
+**Important**: This Guidance requires the use of AWS CodeCommit, which is no longer available to new customers. Existing customers of AWS CodeCommit can continue using and deploying this Guidance as normal.
+
 This guidance creates a scalable environment in AWS to prepare genomic, clinical, mutation, expression and imaging data for large-scale analysis and perform interactive queries against a data lake. This solution demonstrates how to 1) build, package, and deploy libraries used for genomics data conversion, 2) provision serverless data ingestion pipelines for multi-modal data preparation and cataloging, 3) visualize and explore clinical data through an interactive interface, and 4) run interactive analytic queries against a multi-modal data lake. This solution also demonstrates how to use AWS Omics to create and work with a Sequence Store, Reference Store and Variant Store in a multi-modal context.
 
 # Setup
