@@ -86,7 +86,9 @@ mkdir -p $bundle_dir
 
 # create the lambda function deployment pacakage for the solution setup
 cd $source_dir/GenomicsAnalysisCode/setup
-pip install -t . crhelper
+echo "Installing dependencies for Lambda function..."
+pip install -t . crhelper boto3
+echo "Creating Lambda deployment package..."
 zip -r $bundle_dir/SolutionSetup.zip .
 
 # package the solution

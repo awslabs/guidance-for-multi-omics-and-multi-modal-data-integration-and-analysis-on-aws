@@ -56,7 +56,7 @@ Resources:
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:5.0
         EnvironmentVariables:
           - Name: RESOURCES_BUCKET
             Value: !Sub ${ResourcesBucket}
