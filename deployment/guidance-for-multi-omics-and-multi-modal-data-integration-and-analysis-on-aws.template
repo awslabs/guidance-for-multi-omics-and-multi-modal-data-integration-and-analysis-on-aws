@@ -38,7 +38,7 @@ Resources:
       - SetupLambdaRole
     Properties:
       Handler: lambda.handler
-      Runtime: python3.8
+      Runtime: python3.9
       FunctionName: !Sub ${Project}Setup
       Code:
         S3Bucket: !Join ["-", [!FindInMap ["SourceCode", "General", "S3Bucket"], Ref: "AWS::Region"]]
